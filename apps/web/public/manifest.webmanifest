@@ -1,0 +1,16 @@
+{
+  "name": "Tracktist — your personal live-music radar",
+  "short_name": "Tracktist",
+  "description": "Follow your favourite artists and get notified when they play within your radius — across borders.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "categories": ["music", "lifestyle", "social"],
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

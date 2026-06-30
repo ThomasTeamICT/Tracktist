@@ -80,9 +80,29 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture and
 ## Status
 
 - ✅ **Spike 0** — data proof (resolution → TM+BIT fetch → dedupe → cross-border
-  distance) with automated tests. `pnpm spike0`.
-- 🚧 **MVP (web)** — account, anchors, import, sync, agenda + map/globe,
-  notifications, affiliate tracking.
+  distance) with automated tests. `pnpm spike0` · `pnpm test:core` (50 tests).
+- ✅ **MVP (web)** — account (Auth.js: email magic link + Google), thuisanker +
+  straal, artiest-import (zoeken / CSV-plak / Last.fm), automatische sync (TM +
+  Bandsintown, dedupe), agenda + interactieve map/globe, web-push + e-mail +
+  in-app meldingen met slimme regels, affiliate-getrackte ticketlinks,
+  vrienden, instellingen. Full §11 API. Builds clean (`pnpm build`).
+- ✅ **Backend bewezen tegen een echte PostGIS-database** — migraties, een
+  PostGIS `ST_DWithin`-nabijheidsquery en een end-to-end integratietest
+  (`pnpm --filter @tracktist/web test:integration`, 12 assertions): dedupe →
+  persist → cross-border nearby → relevantie → idempotente notificaties.
+- ⏭️ **Volgende (v1.5/v2)** — volwaardige 3D-globe (R3F/Globe.gl), vrienden-crews
+  & gedeelde watchlists, wekelijkse digest, Pro-feature-flag, native app
+  (echte push, geofencing), reisankers, kalendersync, co-occurrence-aanbevelingen.
+
+### Verify everything
+
+```bash
+pnpm test:core                               # 50 core unit tests (incl. Spike 0)
+pnpm spike0                                  # human-readable data proof (offline)
+pnpm --filter @tracktist/web build           # production build of the web app
+pnpm --filter @tracktist/web db:seed         # demo data into a local PostGIS db
+pnpm --filter @tracktist/web test:integration # full backend, 12 assertions, real db
+```
 
 ## License
 

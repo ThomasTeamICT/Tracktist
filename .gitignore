@@ -38,3 +38,6 @@ Thumbs.db
 
 # Turbo / caches
 .turbo/
+
+# Local Prisma engines (downloaded manually; dev-only)
+.prisma-engines/

@@ -1,0 +1,547 @@
+// Tracktist data model (brief §10). PostgreSQL + PostGIS.
+//
+// Geo: venues/anchors store latitude+longitude as columns; a PostGIS GIST
+// expression index (see migration `add_postgis`) powers fast ST_DWithin
+// "nearby" queries. @tracktist/core keeps a pure-Haversine path for logic/tests.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ── Enums ───────────────────────────────────────────────────────────────────
+
+enum ArtistPriority {
+  LOW
+  NORMAL
+  HIGH
+  MUST_SEE
+}
+
+enum NotifyMode {
+  ALWAYS
+  WITHIN_DISTANCE
+  ONLY_COUNTRIES
+  ONLY_NEW_TOURS
+  ONLY_WITH_TICKETS
+  DASHBOARD_ONLY
+}
+
+enum EventStatus {
+  ANNOUNCED
+  TICKETS_AVAILABLE
+  SOLD_OUT
+  CANCELLED
+  RESCHEDULED
+  PAST
+}
+
+enum TicketStatus {
+  AVAILABLE
+  PRESALE
+  SOLD_OUT
+  CANCELLED
+  UNKNOWN
+}
+
+enum ProviderName {
+  TICKETMASTER
+  BANDSINTOWN
+  SETLISTFM
+  MANUAL
+}
+
+enum ExternalSource {
+  MUSICBRAINZ
+  TICKETMASTER
+  BANDSINTOWN
+  SPOTIFY
+  LASTFM
+  SETLISTFM
+  WEBSITE
+}
+
+enum NotificationType {
+  NEW_SHOW_NEARBY
+  NEW_SHOW_MUST_SEE
+  TICKETS_AVAILABLE
+  RESCHEDULED
+  CANCELLED
+  FRIEND_ACTIVITY
+  WEEKLY_DIGEST
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum ListKind {
+  FAVORITES
+  SEE_LIVE
+  FESTIVALS
+  CUSTOM
+}
+
+enum DeviceKind {
+  WEB_PUSH
+  FCM
+  APNS
+}
+
+enum InterestStatus {
+  GOING
+  MAYBE
+  NOT
+}
+
+enum GroupRole {
+  OWNER
+  MEMBER
+}
+
+// ── Auth (Auth.js / NextAuth Prisma adapter) ─────────────────────────────────
+
+model User {
+  id                String    @id @default(cuid())
+  name              String?
+  email             String?   @unique
+  emailVerified     DateTime?
+  image             String?
+  preferredLanguage String    @default("nl")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  accounts             Account[]
+  sessions             Session[]
+  locations            UserLocation[]
+  follows              UserArtistFollow[]
+  lists                ArtistList[]
+  notifications        Notification[]
+  notificationPref     NotificationPreference?
+  devices              UserDevice[]
+  affiliateClicks      AffiliateClick[]
+  sentFriendships      Friendship[]         @relation("requester")
+  receivedFriendships  Friendship[]         @relation("addressee")
+  ownedGroups          Group[]              @relation("groupOwner")
+  groupMemberships     GroupMember[]
+  groupEventInterests  GroupEventInterest[]
+  calendarIntegrations CalendarIntegration[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ── Locations / anchors ──────────────────────────────────────────────────────
+
+model UserLocation {
+  id          String    @id @default(cuid())
+  userId      String
+  label       String
+  latitude    Float
+  longitude   Float
+  city        String?
+  country     String?
+  countryCode String?
+  radiusKm    Int       @default(150)
+  active      Boolean   @default(true)
+  startDate   DateTime? @db.Date
+  endDate     DateTime? @db.Date
+  createdAt   DateTime  @default(now())
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([userId])
+}
+
+// ── Artists & identity ───────────────────────────────────────────────────────
+
+model Artist {
+  id             String    @id @default(cuid())
+  mbid           String?   @unique
+  name           String
+  sortName       String?
+  disambiguation String?
+  country        String?
+  imageUrl       String?
+  genres         String[]
+  bio            String?   @db.Text
+  lastSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  externalIds ArtistExternalId[]
+  events      EventArtist[]
+  follows     UserArtistFollow[]
+  listItems   ArtistListItem[]
+  groupFollows GroupArtistFollow[]
+  syncLogs    ProviderSyncLog[]
+  notifications Notification[]
+
+  @@index([name])
+}
+
+model ArtistExternalId {
+  id         String         @id @default(cuid())
+  artistId   String
+  source     ExternalSource
+  externalId String
+  url        String?
+  createdAt  DateTime       @default(now())
+
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([source, externalId])
+  @@unique([artistId, source])
+  @@index([artistId])
+}
+
+model UserArtistFollow {
+  id           String         @id @default(cuid())
+  userId       String
+  artistId     String
+  priority     ArtistPriority @default(NORMAL)
+  notifyMode   NotifyMode     @default(WITHIN_DISTANCE)
+  countryCodes String[]
+  createdAt    DateTime       @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, artistId])
+  @@index([artistId])
+}
+
+model ArtistList {
+  id        String           @id @default(cuid())
+  userId    String
+  name      String
+  kind      ListKind         @default(CUSTOM)
+  createdAt DateTime         @default(now())
+
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ArtistListItem[]
+
+  @@index([userId])
+}
+
+model ArtistListItem {
+  id       String @id @default(cuid())
+  listId   String
+  artistId String
+
+  list   ArtistList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  artist Artist     @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, artistId])
+}
+
+// ── Events & venues ──────────────────────────────────────────────────────────
+
+model Venue {
+  id          String   @id @default(cuid())
+  name        String
+  city        String?
+  country     String?
+  countryCode String?
+  address     String?
+  latitude    Float?
+  longitude   Float?
+  timezone    String?
+  createdAt   DateTime @default(now())
+
+  events Event[]
+
+  @@unique([name, city])
+  @@index([countryCode])
+}
+
+model Event {
+  id              String       @id @default(cuid())
+  dedupeKey       String       @unique
+  title           String?
+  date            DateTime     @db.Date
+  startTime       String?
+  timezone        String?
+  supportActs     String[]
+  venueId         String
+  status          EventStatus  @default(ANNOUNCED)
+  ticketStatus    TicketStatus @default(UNKNOWN)
+  priceMin        Float?
+  priceMax        Float?
+  priceCurrency   String?
+  isFestival      Boolean      @default(false)
+  festivalName    String?
+  confidenceScore Float        @default(0)
+  firstSeenAt     DateTime     @default(now())
+  lastCheckedAt   DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  venue         Venue                @relation(fields: [venueId], references: [id])
+  artists       EventArtist[]
+  sources       EventSource[]
+  notifications Notification[]
+  interests     GroupEventInterest[]
+  affiliateClicks AffiliateClick[]
+
+  @@index([date])
+  @@index([venueId])
+}
+
+model EventArtist {
+  id       String  @id @default(cuid())
+  eventId  String
+  artistId String
+  headliner Boolean @default(true)
+  position Int     @default(0)
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, artistId])
+  @@index([artistId])
+}
+
+model EventSource {
+  id            String       @id @default(cuid())
+  eventId       String
+  provider      ProviderName
+  sourceId      String
+  url           String?
+  ticketUrl     String?
+  lastCheckedAt DateTime     @default(now())
+
+  event   Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  payload EventRawPayload?
+
+  @@unique([provider, sourceId])
+  @@index([eventId])
+}
+
+model EventRawPayload {
+  id            String   @id @default(cuid())
+  eventSourceId String   @unique
+  payload       Json
+  fetchedAt     DateTime @default(now())
+
+  eventSource EventSource @relation(fields: [eventSourceId], references: [id], onDelete: Cascade)
+}
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  eventId    String?
+  artistId   String?
+  anchorId   String?
+  type       NotificationType
+  title      String
+  body       String
+  dedupeKey  String           @unique
+  changeHash String?
+  webPush    Boolean          @default(false)
+  email      Boolean          @default(false)
+  inApp      Boolean          @default(true)
+  readAt     DateTime?
+  sentAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event  Event?        @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  artist Artist?       @relation(fields: [artistId], references: [id], onDelete: SetNull)
+  anchor UserLocation? @relation(fields: [anchorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt])
+}
+
+model NotificationPreference {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  maxDistanceKm     Int?
+  countryCodes      String[]
+  onlyMustSee       Boolean  @default(false)
+  noFestivals       Boolean  @default(false)
+  onlyWeekends      Boolean  @default(false)
+  onlyWithTicketLink Boolean @default(false)
+  onlyIfFriendsFollow Boolean @default(false)
+  digest            Boolean  @default(false)
+  quietHoursStart   String?
+  quietHoursEnd     String?
+  webPush           Boolean  @default(true)
+  email             Boolean  @default(true)
+  inApp             Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Social ───────────────────────────────────────────────────────────────────
+
+model Friendship {
+  id          String           @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  requester User @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  createdAt DateTime @default(now())
+
+  owner     User                 @relation("groupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members   GroupMember[]
+  follows   GroupArtistFollow[]
+  interests GroupEventInterest[]
+}
+
+model GroupMember {
+  id      String    @id @default(cuid())
+  groupId String
+  userId  String
+  role    GroupRole @default(MEMBER)
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model GroupArtistFollow {
+  id       String @id @default(cuid())
+  groupId  String
+  artistId String
+
+  group  Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, artistId])
+}
+
+model GroupEventInterest {
+  id      String         @id @default(cuid())
+  groupId String
+  eventId String
+  userId  String
+  status  InterestStatus @default(MAYBE)
+  createdAt DateTime     @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, eventId, userId])
+}
+
+// ── Ops / devices / monetisation ─────────────────────────────────────────────
+
+model ProviderSyncLog {
+  id         String       @id @default(cuid())
+  provider   ProviderName
+  artistId   String?
+  startedAt  DateTime     @default(now())
+  finishedAt DateTime?
+  ok         Boolean      @default(false)
+  eventCount Int          @default(0)
+  callCount  Int          @default(0)
+  error      String?
+
+  artist Artist? @relation(fields: [artistId], references: [id], onDelete: SetNull)
+
+  @@index([provider, startedAt])
+}
+
+model UserDevice {
+  id        String     @id @default(cuid())
+  userId    String
+  kind      DeviceKind @default(WEB_PUSH)
+  endpoint  String?    @unique
+  p256dh    String?
+  auth      String?
+  token     String?
+  userAgent String?
+  createdAt DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model CalendarIntegration {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String
+  accessToken  String?  @db.Text
+  refreshToken String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AffiliateClick {
+  id            String       @id @default(cuid())
+  subId         String       @unique
+  userId        String?
+  eventId       String
+  eventSourceId String?
+  provider      ProviderName
+  rawUrl        String       @db.Text
+  wrappedUrl    String       @db.Text
+  affiliated    Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}

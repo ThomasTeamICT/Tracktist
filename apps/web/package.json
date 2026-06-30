@@ -1,0 +1,46 @@
+{
+  "name": "@tracktist/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "prisma": "prisma",
+    "db:seed": "node --conditions=react-server --import tsx prisma/seed.ts",
+    "test:integration": "node --conditions=react-server --import tsx scripts/integration-test.ts"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "2.7.4",
+    "@prisma/client": "6.2.1",
+    "@tracktist/core": "workspace:*",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "0.469.0",
+    "next": "15.1.6",
+    "next-auth": "5.0.0-beta.25",
+    "nodemailer": "6.9.16",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "server-only": "0.0.1",
+    "tailwind-merge": "2.6.0",
+    "web-push": "3.6.7",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "22.7.5",
+    "@types/nodemailer": "6.4.17",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "@types/web-push": "3.6.4",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.4.49",
+    "prisma": "6.2.1",
+    "tailwindcss": "3.4.17",
+    "tsx": "4.19.1",
+    "typescript": "5.6.3"
+  }
+}

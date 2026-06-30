@@ -1,0 +1,21 @@
+{
+  "name": "@tracktist/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tracktist background workers (BullMQ): scheduled sync + notification ticks (brief §5.2).",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bullmq": "5.34.5",
+    "ioredis": "5.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.7.5",
+    "tsx": "4.19.1",
+    "typescript": "5.6.3"
+  }
+}
