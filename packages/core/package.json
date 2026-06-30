@@ -1,0 +1,30 @@
+{
+  "name": "@tracktist/core",
+  "version": "0.1.0",
+  "description": "Tracktist shared core: domain types, provider layer, artist resolution, dedupe, geo-distance, confidence, relevance, affiliate. UI-independent and reused by web, worker and (later) native apps.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./geo": "./src/geo/index.ts",
+    "./providers": "./src/providers/index.ts",
+    "./pipeline": "./src/pipeline/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "spike0": "tsx scripts/spike0.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.2"
+  }
+}
