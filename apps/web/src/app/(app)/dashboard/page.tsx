@@ -29,8 +29,10 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Hallo{user.name ? `, ${user.name.split(" ")[0]}` : ""}</h1>
-          <p className="text-white/55">Je persoonlijke live-muziekradar.</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Hallo<span className="gradient-text">{user.name ? `, ${user.name.split(" ")[0]}` : ""}</span>
+          </h1>
+          <p className="mt-1 text-white/55">Je persoonlijke live-muziekradar.</p>
         </div>
         <Link href="/artists">
           <Button><Plus className="h-4 w-4" /> Artiest toevoegen</Button>
@@ -76,10 +78,10 @@ export default async function DashboardPage() {
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
     <div className="card flex items-center gap-3 p-4">
-      <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/5 text-accent-soft">{icon}</span>
+      <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent-grad text-white shadow-glow">{icon}</span>
       <div>
-        <div className="text-xl font-semibold">{value}</div>
-        <div className="text-xs text-white/50">{label}</div>
+        <div className="font-display text-2xl font-semibold leading-none">{value}</div>
+        <div className="mt-1 text-xs text-white/50">{label}</div>
       </div>
     </div>
   );

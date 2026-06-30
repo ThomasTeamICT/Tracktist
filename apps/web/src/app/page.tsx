@@ -29,8 +29,13 @@ export default async function LandingPage() {
         </Link>
       </header>
 
-      <section className="py-16 text-center sm:py-24">
-        <p className="mb-4 inline-block rounded-full bg-white/5 px-3 py-1 text-xs text-white/60">
+      <section className="relative py-16 text-center sm:py-24">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-0 -z-10 h-72 w-72 -translate-x-1/2 animate-float rounded-full opacity-70 blur-2xl"
+          style={{ backgroundImage: "radial-gradient(circle at 40% 35%, #9d86ff, #5b3df0 45%, transparent 70%)" }}
+        />
+        <p className="mb-4 inline-block rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
           Your personal live-music radar
         </p>
         <h1 className="mx-auto max-w-3xl text-4xl font-bold leading-tight sm:text-6xl">
@@ -58,8 +63,10 @@ export default async function LandingPage() {
         {features.map((f) => {
           const Icon = f.icon;
           return (
-            <div key={f.title} className="card p-5">
-              <Icon className="mb-3 h-6 w-6 text-accent-soft" />
+            <div key={f.title} className="card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-white/20 hover:shadow-glow">
+              <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-accent-grad-soft text-accent-soft ring-1 ring-inset ring-white/10">
+                <Icon className="h-5 w-5" />
+              </span>
               <h3 className="font-semibold">{f.title}</h3>
               <p className="mt-1 text-sm text-white/55">{f.body}</p>
             </div>
