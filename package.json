@@ -17,11 +17,12 @@
     "spike0": "pnpm --filter @tracktist/core spike0",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
-    "db:up": "docker compose up -d postgres redis",
+    "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
-    "db:migrate": "pnpm --filter @tracktist/web prisma migrate dev",
+    "db:migrate": "pnpm --filter @tracktist/web prisma migrate deploy",
     "db:generate": "pnpm --filter @tracktist/web prisma generate",
-    "db:seed": "pnpm --filter @tracktist/web db:seed"
+    "db:seed": "pnpm --filter @tracktist/web db:seed",
+    "setup": "pnpm db:up && pnpm --filter @tracktist/web prisma migrate deploy && pnpm --filter @tracktist/web db:seed"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

@@ -39,7 +39,13 @@ correct artist identity. That is proven **first** — see [Spike 0](docs/SPIKE0.
 
 ## Quick start
 
+> **Geen programmeerervaring?** Volg [`docs/QUICKSTART.md`](docs/QUICKSTART.md) —
+> drie dingen installeren, drie commando's, klaar (~10 min). De rest van deze
+> sectie is de korte versie voor wie het pad al kent.
+
 ```bash
+# 0. Beginners: pnpm install && cp .env.example .env && pnpm setup && pnpm dev
+
 # 1. Node 22 + pnpm 10
 corepack enable
 
