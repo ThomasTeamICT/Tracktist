@@ -36,30 +36,30 @@ interface NotificationsData {
 /* Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
+// Keyed on the NotificationType enum values the API actually returns
+// (see prisma schema + notify.ts).
 const TYPE_LABELS: Record<string, string> = {
-  new_event: "nieuw optreden",
-  new_tour: "nieuwe tour",
-  ticket_available: "tickets",
-  price_drop: "prijsdaling",
-  reminder: "herinnering",
-  friend_request: "vriendverzoek",
-  digest: "samenvatting",
-  system: "systeem",
+  NEW_SHOW_NEARBY: "nieuw optreden dichtbij",
+  NEW_SHOW_MUST_SEE: "must-see",
+  TICKETS_AVAILABLE: "tickets",
+  RESCHEDULED: "verplaatst",
+  CANCELLED: "geannuleerd",
+  FRIEND_ACTIVITY: "vrienden",
+  WEEKLY_DIGEST: "samenvatting",
 };
 
 const TYPE_TONES: Record<string, "neutral" | "accent" | "success" | "warning" | "danger"> = {
-  new_event: "accent",
-  new_tour: "accent",
-  ticket_available: "success",
-  price_drop: "success",
-  reminder: "warning",
-  friend_request: "neutral",
-  digest: "neutral",
-  system: "neutral",
+  NEW_SHOW_NEARBY: "accent",
+  NEW_SHOW_MUST_SEE: "accent",
+  TICKETS_AVAILABLE: "success",
+  RESCHEDULED: "warning",
+  CANCELLED: "danger",
+  FRIEND_ACTIVITY: "neutral",
+  WEEKLY_DIGEST: "neutral",
 };
 
 function typeLabel(type: string): string {
-  return TYPE_LABELS[type] ?? type.replace(/_/g, " ");
+  return TYPE_LABELS[type] ?? type.replace(/_/g, " ").toLowerCase();
 }
 
 function typeTone(type: string): "neutral" | "accent" | "success" | "warning" | "danger" {

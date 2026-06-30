@@ -1035,12 +1035,10 @@ function PrivacySection({
         </div>
         <Button
           variant="outline"
-          onClick={() =>
-            notify(
-              "info",
-              "Data-export wordt in een latere stap geactiveerd. Je gegevens worden dan als download klaargezet.",
-            )
-          }
+          onClick={() => {
+            notify("info", "Je data-export wordt gedownload…");
+            if (typeof window !== "undefined") window.location.href = "/api/me/export";
+          }}
         >
           <Download className="h-4 w-4" /> Exporteer mijn data
         </Button>
@@ -1058,7 +1056,7 @@ function PrivacySection({
         </div>
         <Button
           variant="danger"
-          onClick={() => {
+          onClick={async () => {
             if (
               typeof window !== "undefined" &&
               !window.confirm(
@@ -1067,10 +1065,14 @@ function PrivacySection({
             ) {
               return;
             }
-            notify(
-              "info",
-              "Accountverwijdering wordt in een latere stap geactiveerd. Je gegevens blijven voorlopig bewaard.",
-            );
+            try {
+              const res = await fetch("/api/me", { method: "DELETE", credentials: "same-origin" });
+              if (!res.ok) throw new Error("verwijderen mislukt");
+              notify("success", "Je account is verwijderd. Tot ziens!");
+              if (typeof window !== "undefined") window.location.href = "/";
+            } catch {
+              notify("danger", "Account verwijderen is mislukt. Probeer later opnieuw.");
+            }
           }}
         >
           <Trash2 className="h-4 w-4" /> Verwijder mijn account
