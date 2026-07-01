@@ -31,11 +31,14 @@ Geen Git? Ga op GitHub naar de branch `claude/independent-build-cd5vvv`, klik
 Typ ze één voor één (wacht tot elk klaar is):
 
 ```bash
-pnpm install          # installeert alles (1e keer duurt even)
-cp .env.example .env  # maakt je instellingenbestand   (Windows: copy .env.example .env)
-pnpm setup            # start de database + vult demo-data
-pnpm dev              # start de app
+pnpm install                        # installeert alles (1e keer duurt even)
+cp .env.example apps/web/.env       # instellingenbestand (Windows: copy .env.example apps\web\.env)
+pnpm setup                          # start de database + vult demo-data (Docker moet draaien)
+pnpm dev                            # start de app
 ```
+
+> Let op: het `.env`-bestand hoort in **`apps/web/`** (daar leest de web-app het),
+> niet in de hoofdmap.
 
 Open daarna **http://localhost:3000** in je browser → je ziet de landingspagina. 🎉
 

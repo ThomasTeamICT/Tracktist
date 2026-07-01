@@ -10,8 +10,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "prisma": "prisma",
-    "db:seed": "node --conditions=react-server --import tsx prisma/seed.ts",
-    "test:integration": "node --conditions=react-server --import tsx scripts/integration-test.ts"
+    "db:seed": "node --env-file-if-exists=.env --conditions=react-server --import tsx prisma/seed.ts",
+    "test:integration": "node --env-file-if-exists=.env --conditions=react-server --import tsx scripts/integration-test.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "2.7.4",

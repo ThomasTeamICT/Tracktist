@@ -44,7 +44,7 @@ correct artist identity. That is proven **first** — see [Spike 0](docs/SPIKE0.
 > sectie is de korte versie voor wie het pad al kent.
 
 ```bash
-# 0. Beginners: pnpm install && cp .env.example .env && pnpm setup && pnpm dev
+# 0. Beginners: pnpm install && cp .env.example apps/web/.env && pnpm setup && pnpm dev
 
 # 1. Node 22 + pnpm 10
 corepack enable
