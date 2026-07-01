@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Music2, MapPin, CalendarCheck, Plus } from "lucide-react";
+import { Music2, MapPin, CalendarCheck, Plus, Sparkles } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getUserAgenda } from "@/lib/queries";
-import { toGlobeEvent } from "@/lib/serialize";
+import { toGlobeEvent, type GlobeEventDTO } from "@/lib/serialize";
 import { EventCard } from "@/components/event-card";
-import { Button, SectionTitle } from "@/components/ui";
+import { Badge, Button, SectionTitle, gradientFromName } from "@/components/ui";
+import { formatDate, formatDistance } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
     prisma.userLocation.count({ where: { userId: user.id } }),
   ]);
 
-  const dtos = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id));
+  const dtos = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db));
   const byRelevance = [...dtos].sort((a, b) => b.relevance - a.relevance);
   const within = dtos.filter((e) => e.withinRadius);
 
@@ -38,6 +39,8 @@ export default async function DashboardPage() {
           <Button><Plus className="h-4 w-4" /> Artiest toevoegen</Button>
         </Link>
       </header>
+
+      {byRelevance[0] ? <FeaturedShow event={byRelevance[0]} /> : null}
 
       <div className="grid grid-cols-3 gap-3">
         <Stat icon={<Music2 className="h-4 w-4" />} label="Gevolgd" value={followCount} />
@@ -72,6 +75,45 @@ export default async function DashboardPage() {
         )}
       </section>
     </div>
+  );
+}
+
+function FeaturedShow({ event }: { event: GlobeEventDTO }) {
+  return (
+    <Link
+      href={`/events/${event.eventId}`}
+      className="group relative block h-60 animate-fade-up overflow-hidden rounded-3xl border border-white/10 shadow-card sm:h-72"
+    >
+      <div
+        className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+        style={
+          event.artistImageUrl
+            ? { backgroundImage: `url("${event.artistImageUrl}")` }
+            : { backgroundImage: gradientFromName(event.artistName) }
+        }
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-bg/80 via-bg/20 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 max-w-2xl p-6">
+        <Badge tone="accent"><Sparkles className="h-3 w-3" /> Aanrader voor jou</Badge>
+        <h2 className="mt-2 font-display text-3xl font-bold leading-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] sm:text-4xl">
+          {event.artistName}
+        </h2>
+        <p className="mt-1 text-white/75">
+          {formatDate(event.date)} · {[event.venue, event.city].filter(Boolean).join(", ")}
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {event.withinRadius ? (
+            <Badge tone="success">binnen straal · {formatDistance(event.distanceKm)}</Badge>
+          ) : (
+            <Badge>{formatDistance(event.distanceKm)}</Badge>
+          )}
+          <Badge tone={event.ticketStatus === "available" ? "success" : "neutral"}>
+            {event.ticketStatus.replace("_", " ")}
+          </Badge>
+        </div>
+      </div>
+    </Link>
   );
 }
 

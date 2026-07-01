@@ -1,5 +1,6 @@
 import type { EvaluatedEvent } from "@tracktist/core";
 import { isLowConfidence } from "@tracktist/core";
+import { headlinerImageUrl, type DbEventWithRelations } from "./mappers.js";
 
 /**
  * API serializers. The globe shape matches the brief §11 example response so
@@ -9,6 +10,7 @@ import { isLowConfidence } from "@tracktist/core";
 export interface GlobeEventDTO {
   eventId: string;
   artistName: string;
+  artistImageUrl: string | null;
   date: string;
   startTime: string | null;
   venue: string;
@@ -30,10 +32,15 @@ export interface GlobeEventDTO {
 }
 
 /** `dbEventId` is the real DB id; the canonical `event.id` is the dedupe key. */
-export function toGlobeEvent(e: EvaluatedEvent, dbEventId: string): GlobeEventDTO {
+export function toGlobeEvent(
+  e: EvaluatedEvent,
+  dbEventId: string,
+  db?: DbEventWithRelations,
+): GlobeEventDTO {
   return {
     eventId: dbEventId,
     artistName: e.event.artistName,
+    artistImageUrl: db ? headlinerImageUrl(db) : null,
     date: e.event.date,
     startTime: e.event.startTime ?? null,
     venue: e.event.venue.name,

@@ -48,7 +48,7 @@ export default async function ArtistDetailPage({ params }: { params: Promise<{ i
 
   const events = agenda
     .filter((a) => a.db.artists.some((x) => x.artist.id === id))
-    .map((a) => toGlobeEvent(a.evaluated, a.db.id));
+    .map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db));
 
   const links = artist.externalIds
     .map((x) => ({

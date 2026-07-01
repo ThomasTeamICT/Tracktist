@@ -5,6 +5,7 @@ import { prisma } from "./prisma.js";
 import { buildArtistResolver } from "./integrations.js";
 import { toDbNotifyMode, toDbPriority } from "./mappers.js";
 import { syncArtist } from "./sync.js";
+import { fetchArtistImage } from "./artist-image.js";
 import type { ArtistFollowRules } from "@tracktist/core";
 
 /**
@@ -40,6 +41,14 @@ export async function getOrCreateArtistFromCore(artist: CoreArtist) {
       (await prisma.artist.create({ data: { name: artist.name, genres: artist.genres ?? [] } }));
   }
   await upsertExternalIds(dbArtist.id, artist.externalIds);
+
+  // Enrich with a real photo (Deezer, best-effort) if we don't have one yet.
+  if (!dbArtist.imageUrl) {
+    const img = await fetchArtistImage(dbArtist.name);
+    if (img) {
+      dbArtist = await prisma.artist.update({ where: { id: dbArtist.id }, data: { imageUrl: img } });
+    }
+  }
   return dbArtist;
 }
 

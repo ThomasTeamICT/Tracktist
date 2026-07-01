@@ -117,7 +117,7 @@ export interface DbEventWithRelations {
   artists: {
     headliner: boolean;
     position: number;
-    artist: { id: string; name: string; mbid: string | null };
+    artist: { id: string; name: string; mbid: string | null; imageUrl?: string | null };
   }[];
   sources: {
     provider: ProviderName;
@@ -179,6 +179,12 @@ export function dbEventToCanonical(e: DbEventWithRelations): CanonicalEvent {
     firstSeenAt: e.firstSeenAt.toISOString(),
     lastCheckedAt: e.lastCheckedAt.toISOString(),
   };
+}
+
+/** The headliner artist's photo URL (or null) for a persisted event. */
+export function headlinerImageUrl(e: DbEventWithRelations): string | null {
+  const headliner = e.artists.find((a) => a.headliner) ?? e.artists[0];
+  return headliner?.artist.imageUrl ?? null;
 }
 
 function invert<K extends string, V extends string>(rec: Record<K, V>): Record<V, K> {

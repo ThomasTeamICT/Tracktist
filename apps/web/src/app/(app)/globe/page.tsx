@@ -10,7 +10,7 @@ export default async function GlobePage() {
   const user = await requireUser();
   const [agenda, anchors] = await Promise.all([getUserAgenda(user.id), getUserAnchors(user.id)]);
 
-  const events = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id));
+  const events = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db));
   const pins = anchors
     .filter((a) => a.active)
     .map((a) => ({ label: a.label, lat: a.location.lat, lng: a.location.lng, radiusKm: a.radiusKm }));

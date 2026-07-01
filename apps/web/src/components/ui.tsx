@@ -84,6 +84,15 @@ export function SectionTitle({
   );
 }
 
+/** Deterministic musical gradient from any string (artist identity colour). */
+export function gradientFromName(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  const h1 = hash % 360;
+  const h2 = (h1 + 55) % 360;
+  return `linear-gradient(135deg, hsl(${h1} 72% 55%), hsl(${h2} 76% 42%))`;
+}
+
 /** Deterministic gradient avatar from a name — gives every artist an identity. */
 export function GradientAvatar({
   name,
@@ -94,10 +103,6 @@ export function GradientAvatar({
   size?: number;
   className?: string;
 }) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  const h1 = hash % 360;
-  const h2 = (h1 + 60) % 360;
   const initials = name
     .split(/\s+/)
     .slice(0, 2)
@@ -113,7 +118,7 @@ export function GradientAvatar({
         width: size,
         height: size,
         fontSize: size * 0.34,
-        backgroundImage: `linear-gradient(135deg, hsl(${h1} 70% 55%), hsl(${h2} 75% 45%))`,
+        backgroundImage: gradientFromName(name),
       }}
       aria-hidden
     >

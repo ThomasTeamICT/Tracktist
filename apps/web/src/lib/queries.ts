@@ -17,7 +17,7 @@ import {
 /** Prisma include shape that satisfies {@link dbEventToCanonical}. */
 const eventInclude = {
   venue: true,
-  artists: { include: { artist: { select: { id: true, name: true, mbid: true } } } },
+  artists: { include: { artist: { select: { id: true, name: true, mbid: true, imageUrl: true } } } },
   sources: true,
 } as const;
 

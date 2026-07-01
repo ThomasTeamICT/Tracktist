@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const country = url.searchParams.get("country")?.toUpperCase();
 
   const agenda = await getUserAgenda(user.id);
-  let events = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id));
+  let events = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db));
   if (within) events = events.filter((e) => e.withinRadius);
   if (country) events = events.filter((e) => e.countryCode === country);
 
