@@ -28,7 +28,7 @@ export const authConfig: NextAuthConfig = {
   // In development we fall back to a fixed secret so the app runs out of the
   // box without configuring AUTH_SECRET; production still requires a real one.
   secret:
-    env.AUTH_SECRET ??
+    env.AUTH_SECRET ||
     (env.NODE_ENV !== "production" ? "tracktist-dev-insecure-secret-change-me" : undefined),
   trustHost: true,
   providers,

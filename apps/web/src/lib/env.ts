@@ -10,7 +10,10 @@ const schema = z.object({
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
   DATABASE_URL: z.string().min(1),
 
-  AUTH_SECRET: z.string().min(1).optional(),
+  // Optional (empty allowed): dev uses a safe fallback; production requires a
+  // real value, enforced in auth.ts. Kept lenient here so an empty AUTH_SECRET
+  // doesn't fail the whole env parse (which would discard all other vars).
+  AUTH_SECRET: z.string().optional(),
   REDIS_URL: z.string().optional(),
   /** Shared secret protecting /api/internal/* (worker → web). */
   INTERNAL_API_SECRET: z.string().optional(),
