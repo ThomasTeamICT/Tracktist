@@ -244,7 +244,7 @@ export function WorldMap({ events, anchors }: { events: GlobeEventDTO[]; anchors
   );
 }
 
-function MarkerDetail({ event, onClose }: { event: GlobeEventDTO; onClose: () => void }) {
+export function MarkerDetail({ event, onClose }: { event: GlobeEventDTO; onClose: () => void }) {
   return (
     <div className="card animate-fade-up p-4">
       <div className="flex items-start justify-between">
@@ -277,7 +277,7 @@ function MarkerDetail({ event, onClose }: { event: GlobeEventDTO; onClose: () =>
   );
 }
 
-function buildMonthBuckets(events: GlobeEventDTO[]) {
+export function buildMonthBuckets(events: GlobeEventDTO[]) {
   const keys = [...new Set(events.map((e) => e.date.slice(0, 7)))].sort();
   return keys.map((key) => ({
     key,

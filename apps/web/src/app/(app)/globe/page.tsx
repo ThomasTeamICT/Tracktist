@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/session";
 import { getUserAgenda, getUserAnchors } from "@/lib/queries";
 import { toGlobeEvent } from "@/lib/serialize";
-import { WorldMap } from "@/components/world-map";
+import { GlobeView } from "@/components/globe-view";
 import { SectionTitle } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function GlobePage() {
           Nog geen optredens om te tonen. Volg artiesten en stel een thuisanker in.
         </p>
       ) : (
-        <WorldMap events={events} anchors={pins} />
+        <GlobeView events={events} anchors={pins} />
       )}
     </div>
   );
