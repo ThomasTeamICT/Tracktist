@@ -37,16 +37,22 @@ async function importNames(userId: string, names: string[]): Promise<ImportOutco
   const outcome: ImportOutcome = { followed: [], ambiguous: [], notFound: [] };
 
   for (const name of names) {
-    const artist = await resolver.resolve(name);
-    if (artist) {
-      const res = await followResolvedArtist(userId, artist, { sync: true });
-      outcome.followed.push({ name: artist.name, artistId: res.artistId });
-      continue;
+    try {
+      const artist = await resolver.resolve(name);
+      if (artist) {
+        const res = await followResolvedArtist(userId, artist, { sync: true });
+        outcome.followed.push({ name: artist.name, artistId: res.artistId });
+        continue;
+      }
+      // Couldn't auto-pick: surface candidates for confirmation, else not found.
+      const candidates = await resolver.findCandidates(name, 5);
+      if (candidates.length > 0) outcome.ambiguous.push({ query: name, candidates });
+      else outcome.notFound.push(name);
+    } catch {
+      // A metadata-source hiccup for one name must not sink the whole import;
+      // treat it as "not found" so partial imports still succeed (brief §4.2).
+      outcome.notFound.push(name);
     }
-    // Couldn't auto-pick: surface candidates for confirmation, else not found.
-    const candidates = await resolver.findCandidates(name, 5);
-    if (candidates.length > 0) outcome.ambiguous.push({ query: name, candidates });
-    else outcome.notFound.push(name);
   }
   return outcome;
 }

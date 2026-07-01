@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { apiUser, badRequest, json, serverError, unauthorized } from "@/lib/api";
+import { apiUser, badRequest, json, unauthorized } from "@/lib/api";
+import { NextResponse } from "next/server";
 import { importFromLastfm } from "@/lib/import";
+import { features } from "@/lib/env";
 
 const schema = z.object({ username: z.string().min(1), limit: z.number().int().min(1).max(200).optional() });
 
@@ -8,12 +10,23 @@ const schema = z.object({ username: z.string().min(1), limit: z.number().int().m
 export async function POST(req: Request) {
   const user = await apiUser();
   if (!user) return unauthorized();
+  // Not-configured is a client-actionable state, not a server error.
+  if (!features.lastfm) {
+    return NextResponse.json(
+      { error: "not_configured", message: "Last.fm-import is niet geconfigureerd (LASTFM_API_KEY ontbreekt in .env)." },
+      { status: 400 },
+    );
+  }
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest("username required");
   try {
     const outcome = await importFromLastfm(user.id, parsed.data.username, parsed.data.limit ?? 50);
     return json({ outcome });
   } catch (err) {
-    return serverError(err instanceof Error ? err.message : "Last.fm import failed");
+    // A genuine upstream/network failure (not config) → 502.
+    return NextResponse.json(
+      { error: "lastfm_failed", message: err instanceof Error ? err.message : "Last.fm import failed" },
+      { status: 502 },
+    );
   }
 }
