@@ -601,8 +601,6 @@ function StepArtists({ onBack, onDone }: { onBack: () => void; onDone: () => voi
 
 /* ------------------------ step 3: notifications ------------------------- */
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -622,11 +620,27 @@ function StepNotifications({
   onFinish: () => void;
 }) {
   const [pushState, setPushState] = useState<PushState>("idle");
+  const [vapidKey, setVapidKey] = useState<string | null>(null);
   const [email, setEmail] = useState(true);
   const [inApp, setInApp] = useState(true);
   const [digest, setDigest] = useState(false);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+
+  // The VAPID public key is server-configured (VAPID_PUBLIC_KEY); fetch it
+  // rather than relying on a build-time NEXT_PUBLIC_ variable.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/push/public-key", { credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((d: { publicKey?: string | null }) => {
+        if (alive) setVapidKey(d.publicKey ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function enablePush() {
     setPushState("working");
@@ -636,12 +650,14 @@ function StepNotifications({
         typeof window === "undefined" ||
         !("Notification" in window) ||
         !("serviceWorker" in navigator) ||
-        !VAPID_PUBLIC_KEY
+        !vapidKey
       ) {
         setPushState("unavailable");
         setNote("Web push is niet beschikbaar — geen probleem, je krijgt nog steeds e-mail.");
         return;
       }
+      // Register the service worker (needed before subscribing).
+      await navigator.serviceWorker.register("/sw.js").catch(() => undefined);
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setPushState("unavailable");
@@ -651,7 +667,7 @@ function StepNotifications({
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
       const json = sub.toJSON();
       await fetch("/api/push/subscribe", {
