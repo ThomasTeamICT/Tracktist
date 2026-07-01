@@ -37,20 +37,29 @@ pnpm setup            # start de database + vult demo-data
 pnpm dev              # start de app
 ```
 
-Open daarna **http://localhost:3000** in je browser. 🎉
+Open daarna **http://localhost:3000** in je browser → je ziet de landingspagina. 🎉
 
-Je ziet de landingspagina. De demo-data (artiesten The National + Amenra,
-thuislocatie Dendermonde) staat al in de database, zodat je meteen het dashboard
-en de globe kan bekijken.
+## Meteen inloggen als demo-gebruiker (geen sleutels nodig)
 
-## Inloggen (optioneel)
+Ga in je browser naar:
 
-Rondklikken zonder login werkt voor de publieke pagina's. Wil je écht inloggen,
-zet dan in `.env` één van beide:
+```
+http://localhost:3000/api/dev/login
+```
+
+Je bent nu ingelogd als de demo-gebruiker (thuis in Dendermonde) en belandt op het
+**dashboard**, met de demo-artiesten (The National + Amenra) en hun shows op de
+agenda en de globe. Deze snel-login werkt **alleen lokaal** (in ontwikkelmodus) en
+is in productie automatisch uitgeschakeld.
+
+## Écht inloggen met je eigen account (optioneel, geavanceerd)
+
+Wil je met een eigen account inloggen i.p.v. de demo, zet dan in `.env` één van beide:
 - **Google**: `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (via console.cloud.google.com)
 - **E-mail magic link**: `EMAIL_SERVER` + `EMAIL_FROM` (een SMTP-server)
 
-En `AUTH_SECRET` invullen — genereer er één met: `openssl rand -base64 32`.
+Vul dan ook `AUTH_SECRET` in (genereer er één met `openssl rand -base64 32`, of typ
+gewoon een lange willekeurige tekst).
 
 ## Echte concertdata (optioneel)
 

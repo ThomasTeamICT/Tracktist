@@ -25,7 +25,11 @@ if (features.email) {
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
   session: { strategy: "database" },
-  secret: env.AUTH_SECRET,
+  // In development we fall back to a fixed secret so the app runs out of the
+  // box without configuring AUTH_SECRET; production still requires a real one.
+  secret:
+    env.AUTH_SECRET ??
+    (env.NODE_ENV !== "production" ? "tracktist-dev-insecure-secret-change-me" : undefined),
   trustHost: true,
   providers,
   pages: { signIn: "/login" },
