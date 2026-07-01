@@ -33,7 +33,7 @@ Typ ze één voor één (wacht tot elk klaar is):
 ```bash
 pnpm install                        # installeert alles (1e keer duurt even)
 cp .env.example apps/web/.env       # instellingenbestand (Windows: copy .env.example apps\web\.env)
-pnpm setup                          # start de database + vult demo-data (Docker moet draaien)
+pnpm bootstrap                      # start de database + vult demo-data (Docker moet draaien)
 pnpm dev                            # start de app
 ```
 
