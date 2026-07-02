@@ -37,13 +37,13 @@ export function buildSpikeFetch(): FetchImpl {
     // MusicBrainz lookups (most specific first).
     { match: (u) => isMbLookup(u, "mbid-the-national"), body: MB_LOOKUP_THE_NATIONAL },
     { match: (u) => isMbLookup(u, "mbid-amenra"), body: MB_LOOKUP_AMENRA },
-    // MusicBrainz searches.
+    // MusicBrainz searches (query is a quoted Lucene phrase: artist:"name").
     {
-      match: (u) => isMbSearch(u) && urlContains(u, "artist:the national"),
+      match: (u) => isMbSearch(u) && urlContains(u, 'artist:"the national"'),
       body: MB_SEARCH_THE_NATIONAL,
     },
-    { match: (u) => isMbSearch(u) && urlContains(u, "artist:amenra"), body: MB_SEARCH_AMENRA },
-    { match: (u) => isMbSearch(u) && urlContains(u, "artist:halo"), body: MB_SEARCH_AMBIGUOUS },
+    { match: (u) => isMbSearch(u) && urlContains(u, 'artist:"amenra"'), body: MB_SEARCH_AMENRA },
+    { match: (u) => isMbSearch(u) && urlContains(u, 'artist:"halo'), body: MB_SEARCH_AMBIGUOUS },
     // Ticketmaster.
     { match: (u) => isTm(u) && urlContains(u, "the national"), body: TM_EVENTS_THE_NATIONAL },
     { match: (u) => isTm(u) && urlContains(u, "amenra"), body: TM_EVENTS_AMENRA },

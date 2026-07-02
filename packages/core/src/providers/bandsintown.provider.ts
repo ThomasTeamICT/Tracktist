@@ -6,6 +6,7 @@ import type {
 } from "../types/event.js";
 import type { Venue } from "../types/venue.js";
 import { toCountryCode } from "../util/country.js";
+import { normalizeName, similarity } from "../util/text.js";
 import { fetchJson, qs, RateLimiter, type FetchImpl } from "./http.js";
 
 /**
@@ -66,8 +67,11 @@ export class BandsintownProvider implements EventProvider {
   async fetchEventsForArtist(query: EventQuery): Promise<NormalizedEvent[]> {
     if (!this.appId) return [];
     const artist = query.externalIds?.bandsintownId ?? query.artistName;
-    // Bandsintown wants the artist name double-encoded for "/" and similar.
-    const path = encodeURIComponent(artist).replace(/%2F/gi, "%252F");
+    // Bandsintown wants "/", "?" and "*" in artist names double-encoded.
+    const path = encodeURIComponent(artist)
+      .replace(/%2F/gi, "%252F")
+      .replace(/%3F/gi, "%253F")
+      .replace(/\*/g, "%252A");
     const url =
       `${this.baseUrl}/artists/${path}/events` +
       qs({ app_id: this.appId, date: "upcoming" });
@@ -100,6 +104,11 @@ export class BandsintownProvider implements EventProvider {
     const lineup = (e.lineup ?? []).filter(Boolean);
     const headliner = lineup[0] ?? query.artistName;
     const supportActs = lineup.slice(1);
+    // Same rule as Ticketmaster: the MBID belongs to the queried artist, so
+    // only stamp it when they are actually the headliner of this bill.
+    const na = normalizeName(headliner);
+    const nb = normalizeName(query.artistName);
+    const headlinerIsQueryArtist = na === nb || similarity(na, nb) >= 0.85;
 
     const { status, ticketStatus, ticketUrl } = mapOffers(e.offers);
     const isFestival = Boolean(e.festival_start_date) ||
@@ -113,7 +122,7 @@ export class BandsintownProvider implements EventProvider {
         ticketUrl: ticketUrl ?? e.url,
         lastCheckedAt: this.now(),
       },
-      artistMbid: query.mbid ?? query.externalIds?.mbid,
+      artistMbid: headlinerIsQueryArtist ? query.mbid ?? query.externalIds?.mbid : undefined,
       artistName: headliner,
       supportActs,
       title: e.title || undefined,

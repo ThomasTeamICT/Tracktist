@@ -29,10 +29,13 @@ export class RateLimiter {
 
   async acquire(): Promise<void> {
     if (this.minIntervalMs <= 0) return;
+    // Reserve the slot BEFORE sleeping — otherwise concurrent acquirers all
+    // read the same `next`, sleep the same amount, and fire as one burst.
     const now = this.clock();
-    const wait = this.next - now;
+    const scheduled = Math.max(now, this.next);
+    this.next = scheduled + this.minIntervalMs;
+    const wait = scheduled - now;
     if (wait > 0) await this.sleep(wait);
-    this.next = Math.max(now, this.next) + this.minIntervalMs;
   }
 }
 
@@ -93,6 +96,9 @@ export async function fetchJson<T = unknown>(
         signal: controller.signal,
       });
       if (!res.ok) {
+        // Drain the body so the connection can be reused/released (undici
+        // keeps the socket pinned while an error body is unconsumed).
+        await res.body?.cancel().catch(() => undefined);
         const err: HttpError = new Error(`HTTP ${res.status} for ${url}`);
         err.status = res.status;
         err.url = url;
@@ -106,9 +112,11 @@ export async function fetchJson<T = unknown>(
       return (await res.json()) as T;
     } catch (err) {
       lastError = err;
-      const isAbort = err instanceof Error && err.name === "AbortError";
-      // Retry transient network/abort errors; rethrow HttpError already handled.
-      if (attempt < retries && (isAbort || !(err as HttpError).status)) {
+      // A caller-initiated abort is final — never retry it.
+      if (signal?.aborted) throw err;
+      const isTimeout = err instanceof Error && err.name === "AbortError";
+      // Retry transient network/timeout errors; rethrow HttpError already handled.
+      if (attempt < retries && (isTimeout || !(err as HttpError).status)) {
         await sleep(backoffMs * 2 ** attempt);
         continue;
       }

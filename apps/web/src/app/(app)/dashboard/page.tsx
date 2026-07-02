@@ -4,9 +4,9 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getUserAgenda } from "@/lib/queries";
 import { toGlobeEvent, type GlobeEventDTO } from "@/lib/serialize";
-import { EventCard } from "@/components/event-card";
+import { EventCard, TICKET_LABEL, TICKET_TONE } from "@/components/event-card";
 import { Badge, Button, SectionTitle, gradientFromName } from "@/components/ui";
-import { formatDate, formatDistance } from "@/lib/utils";
+import { cssBgUrl, formatDate, formatDistance } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export default async function DashboardPage() {
     prisma.userLocation.count({ where: { userId: user.id } }),
   ]);
 
-  const dtos = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db));
+  const dtos = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db, a.friendCount));
   const byRelevance = [...dtos].sort((a, b) => b.relevance - a.relevance);
   const within = dtos.filter((e) => e.withinRadius);
 
@@ -42,7 +42,7 @@ export default async function DashboardPage() {
 
       {byRelevance[0] ? <FeaturedShow event={byRelevance[0]} /> : null}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-3 min-[420px]:grid-cols-3">
         <Stat icon={<Music2 className="h-4 w-4" />} label="Gevolgd" value={followCount} />
         <Stat icon={<CalendarCheck className="h-4 w-4" />} label="Komende shows" value={dtos.length} />
         <Stat icon={<MapPin className="h-4 w-4" />} label="Binnen straal" value={within.length} />
@@ -88,7 +88,7 @@ function FeaturedShow({ event }: { event: GlobeEventDTO }) {
         className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
         style={
           event.artistImageUrl
-            ? { backgroundImage: `url("${event.artistImageUrl}")` }
+            ? { backgroundImage: cssBgUrl(event.artistImageUrl) }
             : { backgroundImage: gradientFromName(event.artistName) }
         }
       />
@@ -108,8 +108,8 @@ function FeaturedShow({ event }: { event: GlobeEventDTO }) {
           ) : (
             <Badge>{formatDistance(event.distanceKm)}</Badge>
           )}
-          <Badge tone={event.ticketStatus === "available" ? "success" : "neutral"}>
-            {event.ticketStatus.replace("_", " ")}
+          <Badge tone={TICKET_TONE[event.ticketStatus] ?? "neutral"}>
+            {TICKET_LABEL[event.ticketStatus] ?? event.ticketStatus}
           </Badge>
         </div>
       </div>

@@ -9,7 +9,7 @@ export default function NotificationsPage() {
       <header>
         <h1 className="text-2xl font-bold">Meldingen</h1>
         <p className="text-white/55">
-          Nieuwe optredens, prijsdalingen en updates van je artiesten — alles op één plek.
+          Nieuwe optredens, ticketverkoop, verplaatsingen en annuleringen — alles op één plek.
         </p>
       </header>
       <SectionTitle hint="automatisch bijgewerkt">Meldingencentrum</SectionTitle>

@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const events = agenda
     .filter((a) => a.db.artists.some((x) => x.artist.id === id))
-    .map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db));
+    .map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db, a.friendCount));
 
   return json({
     artist: {

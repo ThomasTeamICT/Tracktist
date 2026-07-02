@@ -33,6 +33,8 @@ export function AppNav() {
               <Link
                 key={l.href}
                 href={l.href}
+                aria-label={l.label}
+                aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition",
                   active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white",
@@ -48,6 +50,7 @@ export function AppNav() {
           onClick={() => signOut({ callbackUrl: "/" })}
           className="ml-1 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-white/60 transition hover:bg-white/5 hover:text-white"
           title="Uitloggen"
+          aria-label="Uitloggen"
         >
           <LogOut className="h-4 w-4" />
         </button>

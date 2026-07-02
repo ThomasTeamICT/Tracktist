@@ -168,7 +168,7 @@ function InviteForm({ onInvited }: { onInvited: () => void | Promise<void> }) {
         setError(messages[json.error ?? ""] ?? "Uitnodigen mislukt. Probeer het opnieuw.");
         return;
       }
-      setSuccess(`Verzoek verstuurd naar ${value}.`);
+      setSuccess(`Als ${value} een Tracktist-account heeft, is het verzoek verstuurd.`);
       setEmail("");
       await onInvited();
     } catch {
@@ -457,8 +457,8 @@ function EmptyFriends() {
       </span>
       <p className="font-medium text-white">Nog geen vrienden</p>
       <p className="mx-auto mt-1 max-w-md text-sm text-white/55">
-        Nodig iemand uit met het formulier hierboven. Zodra ze je verzoek accepteren, zie je samen
-        naar welke optredens jullie allebei willen.
+        Nodig iemand uit met het formulier hierboven. Zodra ze je verzoek accepteren, zien jullie
+        van elkaar naar welke optredens je wil gaan — samen plannen wordt zo een stuk leuker.
       </p>
     </Card>
   );

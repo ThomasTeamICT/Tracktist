@@ -13,6 +13,7 @@ import type {
   TicketStatus,
 } from "@prisma/client";
 import type { ArtistFollowRules } from "@tracktist/core";
+import { displayImageUrl } from "./images.js";
 
 /**
  * Bidirectional mapping between @tracktist/core's lowercase string unions and
@@ -101,6 +102,7 @@ export interface DbEventWithRelations {
   priceCurrency: string | null;
   isFestival: boolean;
   festivalName: string | null;
+  supportActs: string[];
   confidenceScore: number;
   firstSeenAt: Date;
   lastCheckedAt: Date;
@@ -130,10 +132,15 @@ export interface DbEventWithRelations {
 
 export function dbEventToCanonical(e: DbEventWithRelations): CanonicalEvent {
   const headliner = e.artists.find((a) => a.headliner) ?? e.artists[0];
-  const supportActs = e.artists
-    .filter((a) => !a.headliner)
-    .sort((a, b) => a.position - b.position)
-    .map((a) => a.artist.name);
+  // Support acts live in the Event.supportActs column (written by sync);
+  // linked non-headliner artist rows are the enriched fallback.
+  const supportActs =
+    e.supportActs.length > 0
+      ? e.supportActs
+      : e.artists
+          .filter((a) => !a.headliner)
+          .sort((a, b) => a.position - b.position)
+          .map((a) => a.artist.name);
 
   return {
     id: e.dedupeKey,
@@ -184,7 +191,7 @@ export function dbEventToCanonical(e: DbEventWithRelations): CanonicalEvent {
 /** The headliner artist's photo URL (or null) for a persisted event. */
 export function headlinerImageUrl(e: DbEventWithRelations): string | null {
   const headliner = e.artists.find((a) => a.headliner) ?? e.artists[0];
-  return headliner?.artist.imageUrl ?? null;
+  return displayImageUrl(headliner?.artist.imageUrl);
 }
 
 function invert<K extends string, V extends string>(rec: Record<K, V>): Record<V, K> {

@@ -7,8 +7,9 @@ import { getUserAgenda } from "@/lib/queries";
 import { toGlobeEvent } from "@/lib/serialize";
 import { fromDbNotifyMode, fromDbPriority } from "@/lib/mappers";
 import { EventCard } from "@/components/event-card";
-import { Badge, Button, SectionTitle } from "@/components/ui";
-import { formatDate } from "@/lib/utils";
+import { Badge, Button, SectionTitle, gradientFromName } from "@/components/ui";
+import { displayImageUrl } from "@/lib/images";
+import { cssBgUrl, formatDate } from "@/lib/utils";
 import { FollowRules } from "./follow-rules";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ export default async function ArtistDetailPage({ params }: { params: Promise<{ i
 
   const events = agenda
     .filter((a) => a.db.artists.some((x) => x.artist.id === id))
-    .map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db));
+    .map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db, a.friendCount));
 
   const links = artist.externalIds
     .map((x) => ({
@@ -72,23 +73,25 @@ export default async function ArtistDetailPage({ params }: { params: Promise<{ i
         </Link>
       </div>
 
-      <header className="card flex flex-col gap-4 p-5 sm:flex-row sm:items-start">
-        <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/5 text-accent-soft">
-          {artist.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={artist.imageUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <Music2 className="h-7 w-7" />
-          )}
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold text-white">{artist.name}</h1>
+      <header className="relative animate-fade-up overflow-hidden rounded-3xl border border-white/10 shadow-card">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={
+            artist.imageUrl
+              ? { backgroundImage: cssBgUrl(displayImageUrl(artist.imageUrl)!) }
+              : { backgroundImage: gradientFromName(artist.name) }
+          }
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-bg/10" />
+        <div className="relative flex min-h-[15rem] flex-col justify-end p-6 sm:min-h-[18rem]">
+          <h1 className="font-display text-4xl font-bold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] sm:text-5xl">
+            {artist.name}
+          </h1>
           {artist.disambiguation ? (
-            <p className="mt-0.5 text-white/55">{artist.disambiguation}</p>
+            <p className="mt-1 text-white/70">{artist.disambiguation}</p>
           ) : null}
 
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/50">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/60">
             {artist.country ? (
               <span className="inline-flex items-center gap-1">
                 <MapPin className="h-3.5 w-3.5" /> {artist.country}
@@ -99,7 +102,7 @@ export default async function ArtistDetailPage({ params }: { params: Promise<{ i
                 <Globe className="h-3.5 w-3.5" /> Laatst gesynchroniseerd op {lastSynced}
               </span>
             ) : (
-              <span className="text-white/40">Nog niet gesynchroniseerd</span>
+              <span className="text-white/50">Nog niet gesynchroniseerd</span>
             )}
           </div>
 
@@ -111,7 +114,7 @@ export default async function ArtistDetailPage({ params }: { params: Promise<{ i
             </div>
           ) : null}
 
-          {artist.bio ? <p className="mt-3 max-w-2xl text-sm text-white/60">{artist.bio}</p> : null}
+          {artist.bio ? <p className="mt-3 max-w-2xl text-sm text-white/70">{artist.bio}</p> : null}
 
           {links.length > 0 ? (
             <div className="mt-4 flex flex-wrap gap-2">

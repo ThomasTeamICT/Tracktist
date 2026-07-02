@@ -39,9 +39,13 @@ export class ArtistResolver {
     const best = candidates[0];
     if (!best || best.score < autoAcceptThreshold) return null;
     const second = candidates[1];
-    if (second && best.score - second.score < minGap && !isExactName(best, name)) {
-      // Too close to call automatically — let the caller disambiguate.
-      return null;
+    if (second && best.score - second.score < minGap) {
+      // Too close to call automatically. An exact-name match may still win —
+      // but only when the runner-up is NOT also an exact match, otherwise
+      // this is precisely the homonym case that needs the user (brief §4.3).
+      const bestExact = isExactName(best, name);
+      const secondExact = isExactName(second, name);
+      if (!bestExact || secondExact) return null;
     }
     return this.enrich(best);
   }

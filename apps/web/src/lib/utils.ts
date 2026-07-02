@@ -17,3 +17,12 @@ export function formatDistance(km: number | null | undefined): string {
   if (km < 10) return `${km.toFixed(1)} km`;
   return `${Math.round(km)} km`;
 }
+
+/**
+ * A CSS `background-image` value for an externally sourced image URL.
+ * Characters that could break out of `url("...")` are percent-encoded so a
+ * crafted URL can't inject CSS.
+ */
+export function cssBgUrl(url: string): string {
+  return `url("${url.replace(/["'()\\\s]/g, (c) => encodeURIComponent(c))}")`;
+}

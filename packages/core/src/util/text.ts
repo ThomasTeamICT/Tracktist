@@ -14,7 +14,9 @@ export function normalizeName(input: string): string {
     .replace(/[̀-ͯ]/g, "") // diacritics
     .toLowerCase()
     .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, " ")
+    // Keep letters/digits from ANY script (Cyrillic, CJK, …) — stripping to
+    // [a-z0-9] would collapse every non-Latin name to "" and merge them all.
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
 }

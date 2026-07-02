@@ -3,9 +3,9 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "Tracktist — your personal live-music radar",
+  title: "Tracktist — jouw persoonlijke live-muziekradar",
   description:
-    "Follow your favourite artists and get notified when they play within your radius — across borders.",
+    "Volg je favoriete artiesten en krijg een melding zodra ze binnen jouw straal spelen — over de landsgrenzen heen.",
   manifest: "/manifest.webmanifest",
   applicationName: "Tracktist",
   appleWebApp: { capable: true, title: "Tracktist", statusBarStyle: "black-translucent" },
@@ -21,11 +21,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="nl" className="dark">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Fonts are self-hosted (see globals.css) — no third-party font CDN (GDPR). */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
-          rel="stylesheet"
+          rel="preload"
+          href="/fonts/inter-var-latin.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/space-grotesk-var-latin.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
         />
       </head>
       <body className="app-bg min-h-screen bg-bg font-sans text-white antialiased">

@@ -113,6 +113,7 @@ function StepLocation({ onDone }: { onDone: () => void }) {
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState<GeoPlace[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
   const [selected, setSelected] = useState<GeoPlace | null>(null);
   const [radius, setRadius] = useState(150);
   const [locating, setLocating] = useState(false);
@@ -126,9 +127,11 @@ function StepLocation({ onDone }: { onDone: () => void }) {
     if (q.length < 2) {
       setPlaces([]);
       setSearching(false);
+      setSearchNote(null);
       return;
     }
     setSearching(true);
+    setSearchNote(null);
     debounce.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
@@ -137,8 +140,14 @@ function StepLocation({ onDone }: { onDone: () => void }) {
         if (!res.ok) throw new Error("geocode mislukt");
         const data: { places?: GeoPlace[] } = await res.json();
         setPlaces(data.places ?? []);
+        // Never fail silently: an empty dropdown looks identical to "nothing
+        // found" — say which of the two it is.
+        setSearchNote(
+          (data.places ?? []).length === 0 ? `Geen plaatsen gevonden voor "${q}".` : null,
+        );
       } catch {
         setPlaces([]);
+        setSearchNote("Zoeken is even niet beschikbaar. Probeer het opnieuw.");
       } finally {
         setSearching(false);
       }
@@ -258,6 +267,10 @@ function StepLocation({ onDone }: { onDone: () => void }) {
           </ul>
         ) : null}
 
+        {searchNote && !selected && !searching ? (
+          <p className="text-sm text-white/55">{searchNote}</p>
+        ) : null}
+
         <Button
           type="button"
           variant="subtle"
@@ -344,6 +357,28 @@ function StepArtists({ onBack, onDone }: { onBack: () => void; onDone: () => voi
   const [paste, setPaste] = useState("");
   const [importing, setImporting] = useState(false);
   const [importOutcome, setImportOutcome] = useState<ImportOutcome | null>(null);
+
+  // Seed with artists the user ALREADY follows (returning users re-entering
+  // onboarding shouldn't be locked behind the ≥1-follow gate).
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/artists/following", { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { artists?: { id: string; name: string }[] } | null) => {
+        if (!alive || !data?.artists?.length) return;
+        setFollowed((prev) => {
+          const seen = new Set(prev.map((f) => f.name.toLowerCase()));
+          const extra = data.artists!
+            .filter((a) => !seen.has(a.name.toLowerCase()))
+            .map((a) => ({ name: a.name, artistId: a.id }));
+          return [...prev, ...extra];
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
@@ -586,13 +621,21 @@ function StepArtists({ onBack, onDone }: { onBack: () => void; onDone: () => voi
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" /> Terug
         </Button>
-        <Button onClick={onDone} disabled={followed.length === 0}>
-          Volgende <ArrowRight className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {followed.length === 0 ? (
+            <Button variant="ghost" onClick={onDone}>
+              Sla over
+            </Button>
+          ) : null}
+          <Button onClick={onDone} disabled={followed.length === 0}>
+            Volgende <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
       {followed.length === 0 ? (
-        <p className="text-right text-xs text-white/40">
-          Volg minstens één artiest om verder te gaan.
+        <p className="text-right text-xs text-white/50">
+          Tip: volg minstens één artiest — je kan deze stap ook overslaan en later artiesten
+          toevoegen.
         </p>
       ) : null}
     </div>

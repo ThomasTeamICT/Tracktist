@@ -29,6 +29,8 @@ export interface GlobeEventDTO {
   relevance: number;
   hasTicketLink: boolean;
   sources: string[];
+  /** Accepted friends interested in this event (brief §6.4). */
+  friendCount: number;
 }
 
 /** `dbEventId` is the real DB id; the canonical `event.id` is the dedupe key. */
@@ -36,6 +38,7 @@ export function toGlobeEvent(
   e: EvaluatedEvent,
   dbEventId: string,
   db?: DbEventWithRelations,
+  friendCount = 0,
 ): GlobeEventDTO {
   return {
     eventId: dbEventId,
@@ -59,5 +62,6 @@ export function toGlobeEvent(
     relevance: e.relevance.total,
     hasTicketLink: e.event.sources.some((s) => Boolean(s.ticketUrl)),
     sources: e.event.sources.map((s) => s.provider),
+    friendCount,
   };
 }

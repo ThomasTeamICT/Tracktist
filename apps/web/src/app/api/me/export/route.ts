@@ -24,6 +24,17 @@ export async function GET() {
       sentFriendships: true,
       receivedFriendships: true,
       groupMemberships: true,
+      ownedGroups: { select: { id: true, name: true, createdAt: true } },
+      groupEventInterests: true,
+      calendarIntegrations: {
+        // Never export raw OAuth tokens — only the fact that a link exists.
+        select: { id: true, provider: true, createdAt: true },
+      },
+      accounts: {
+        // Linked login identities, without their tokens.
+        select: { provider: true, providerAccountId: true, type: true },
+      },
+      sessions: { select: { expires: true } },
     },
   });
 

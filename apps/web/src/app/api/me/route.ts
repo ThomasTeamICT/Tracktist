@@ -7,7 +7,41 @@ export const dynamic = "force-dynamic";
 export async function DELETE() {
   const user = await apiUser();
   if (!user) return unauthorized();
-  // All personal relations cascade from User (see schema onDelete: Cascade).
+
+  // Groups this user OWNS would cascade-delete, destroying other members'
+  // shared data. Hand ownership to the longest-standing other member first;
+  // only truly personal groups (no other members) go down with the account.
+  const owned = await prisma.group.findMany({
+    where: { ownerId: user.id },
+    include: { members: { where: { userId: { not: user.id } }, orderBy: { id: "asc" }, take: 1 } },
+  });
+  for (const group of owned) {
+    const heir = group.members[0];
+    if (heir) {
+      await prisma.group.update({ where: { id: group.id }, data: { ownerId: heir.userId } });
+      await prisma.groupMember.update({ where: { id: heir.id }, data: { role: "OWNER" } });
+    }
+  }
+
+  // Auth.js verification tokens are keyed on the email, not the user row.
+  if (user.email) {
+    await prisma.verificationToken.deleteMany({ where: { identifier: user.email } });
+  }
+
+  // Affiliate clicks survive for accounting (userId → null via SetNull), but
+  // must not keep identifying material: scrub the URLs and re-key the sub-id.
+  const clicks = await prisma.affiliateClick.findMany({
+    where: { userId: user.id },
+    select: { id: true },
+  });
+  for (const c of clicks) {
+    await prisma.affiliateClick.update({
+      where: { id: c.id },
+      data: { subId: `deleted-${c.id}`, rawUrl: "", wrappedUrl: "" },
+    });
+  }
+
+  // All remaining personal relations cascade from User (schema onDelete: Cascade).
   await prisma.user.delete({ where: { id: user.id } });
   return json({ ok: true, deleted: true });
 }

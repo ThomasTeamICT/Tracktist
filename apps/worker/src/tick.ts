@@ -9,7 +9,11 @@ export interface TickResult {
 }
 
 /** Call the web app's guarded internal tick endpoint. */
-export async function runTick(body: { limit?: number; staleHours?: number }): Promise<TickResult> {
+export async function runTick(body: {
+  limit?: number;
+  staleHours?: number;
+  digest?: boolean;
+}): Promise<TickResult> {
   const url = `${config.appBaseUrl}/api/internal/tick`;
   const res = await fetch(url, {
     method: "POST",
@@ -18,6 +22,9 @@ export async function runTick(body: { limit?: number; staleHours?: number }): Pr
       "x-internal-secret": config.internalSecret,
     },
     body: JSON.stringify(body),
+    // A tick syncs up to `limit` artists against rate-limited providers; give
+    // it room but never let a wedged request hang the scheduler forever.
+    signal: AbortSignal.timeout(10 * 60_000),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");

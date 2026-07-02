@@ -15,30 +15,63 @@ import type { ArtistFollowRules } from "@tracktist/core";
  */
 
 export async function getOrCreateArtistFromCore(artist: CoreArtist) {
-  let dbArtist;
+  let dbArtist = null;
   if (artist.mbid) {
-    dbArtist = await prisma.artist.upsert({
-      where: { mbid: artist.mbid },
-      create: {
-        mbid: artist.mbid,
-        name: artist.name,
-        sortName: artist.sortName ?? null,
-        disambiguation: artist.disambiguation ?? null,
-        country: artist.country ?? null,
-        genres: artist.genres ?? [],
-        imageUrl: artist.imageUrl ?? null,
-      },
-      update: {
-        name: artist.name,
-        disambiguation: artist.disambiguation ?? null,
-        country: artist.country ?? null,
-        genres: artist.genres ?? [],
-      },
+    // Backfill: an earlier name-only follow may have created this artist
+    // without an MBID. Claim that row instead of splitting the identity
+    // over two rows.
+    const nameOnly = await prisma.artist.findFirst({
+      where: { mbid: null, name: artist.name },
     });
+    if (nameOnly) {
+      dbArtist = await prisma.artist
+        .update({
+          where: { id: nameOnly.id },
+          data: {
+            mbid: artist.mbid,
+            sortName: artist.sortName ?? null,
+            disambiguation: artist.disambiguation ?? null,
+            country: artist.country ?? null,
+            ...(artist.genres && artist.genres.length > 0 ? { genres: artist.genres } : {}),
+          },
+        })
+        .catch(() => null); // mbid unique race — fall through to the upsert
+    }
+    if (!dbArtist) {
+      dbArtist = await prisma.artist.upsert({
+        where: { mbid: artist.mbid },
+        create: {
+          mbid: artist.mbid,
+          name: artist.name,
+          sortName: artist.sortName ?? null,
+          disambiguation: artist.disambiguation ?? null,
+          country: artist.country ?? null,
+          genres: artist.genres ?? [],
+          imageUrl: artist.imageUrl ?? null,
+        },
+        // Only refresh fields the resolver actually knows; empty genres must
+        // not wipe previously enriched data on the shared canonical row.
+        update: {
+          name: artist.name,
+          ...(artist.disambiguation !== undefined
+            ? { disambiguation: artist.disambiguation }
+            : {}),
+          ...(artist.country !== undefined ? { country: artist.country } : {}),
+          ...(artist.genres && artist.genres.length > 0 ? { genres: artist.genres } : {}),
+        },
+      });
+    }
   } else {
     dbArtist =
       (await prisma.artist.findFirst({ where: { name: artist.name } })) ??
-      (await prisma.artist.create({ data: { name: artist.name, genres: artist.genres ?? [] } }));
+      (await prisma.artist
+        .create({ data: { name: artist.name, genres: artist.genres ?? [] } })
+        .catch(async () => {
+          // Race with a concurrent follow of the same name.
+          const raced = await prisma.artist.findFirst({ where: { name: artist.name } });
+          if (!raced) throw new Error(`Artist create failed for ${artist.name}`);
+          return raced;
+        }));
   }
   await upsertExternalIds(dbArtist.id, artist.externalIds);
 

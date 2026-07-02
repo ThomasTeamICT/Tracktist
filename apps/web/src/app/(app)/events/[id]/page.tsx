@@ -16,11 +16,12 @@ import { getUserAnchors } from "@/lib/queries";
 import { requireUser } from "@/lib/session";
 import {
   dbEventToCanonical,
+  headlinerImageUrl,
   utcToIsoDate,
   type DbEventWithRelations,
 } from "@/lib/mappers";
-import { Badge, Button, SectionTitle } from "@/components/ui";
-import { formatDate, formatDistance } from "@/lib/utils";
+import { Badge, Button, SectionTitle, gradientFromName } from "@/components/ui";
+import { cssBgUrl, formatDate, formatDistance } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -75,18 +76,21 @@ export default async function EventDetailPage({
   const user = await requireUser();
   const { id } = await params;
 
-  const dbEvent = await prisma.event.findUnique({
-    where: { id },
-    include: {
-      venue: true,
-      artists: { include: { artist: { select: { id: true, name: true, mbid: true } } } },
-      sources: true,
-    },
-  });
+  const [dbEvent, anchors] = await Promise.all([
+    prisma.event.findUnique({
+      where: { id },
+      include: {
+        venue: true,
+        artists: { include: { artist: { select: { id: true, name: true, mbid: true, imageUrl: true } } } },
+        sources: true,
+      },
+    }),
+    getUserAnchors(user.id),
+  ]);
   if (!dbEvent) notFound();
 
   const canonical = dbEventToCanonical(dbEvent as unknown as DbEventWithRelations);
-  const anchors = await getUserAnchors(user.id);
+  const heroImageUrl = headlinerImageUrl(dbEvent as unknown as DbEventWithRelations);
   const distances = distancesForEvent(canonical, anchors);
 
   // The DB `date` column is a `@db.Date`; normalise it to an ISO `YYYY-MM-DD`.
@@ -111,42 +115,57 @@ export default async function EventDetailPage({
         <ArrowLeft className="h-4 w-4" /> Terug naar dashboard
       </Link>
 
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {canonical.isFestival ? <Badge tone="accent">festival</Badge> : null}
-          <Badge tone={STATUS_TONE[canonical.status] ?? "neutral"}>
-            {STATUS_LABEL[canonical.status] ?? canonical.status.replace(/_/g, " ")}
-          </Badge>
-          <Badge tone={TICKET_TONE[canonical.ticketStatus] ?? "neutral"}>
-            {TICKET_LABEL[canonical.ticketStatus] ?? canonical.ticketStatus.replace(/_/g, " ")}
-          </Badge>
-        </div>
+      <header className="relative animate-fade-up overflow-hidden rounded-3xl border border-white/10 shadow-card">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={
+            heroImageUrl
+              ? { backgroundImage: cssBgUrl(heroImageUrl) }
+              : { backgroundImage: gradientFromName(canonical.artistName) }
+          }
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-bg/10" />
+        <div className="relative flex min-h-[14rem] flex-col justify-end gap-3 p-6 sm:min-h-[17rem]">
+          <div className="flex flex-wrap items-center gap-2">
+            {canonical.isFestival ? <Badge tone="accent">festival</Badge> : null}
+            <Badge tone={STATUS_TONE[canonical.status] ?? "neutral"}>
+              {STATUS_LABEL[canonical.status] ?? canonical.status.replace(/_/g, " ")}
+            </Badge>
+            {TICKET_LABEL[canonical.ticketStatus] !== STATUS_LABEL[canonical.status] ? (
+              <Badge tone={TICKET_TONE[canonical.ticketStatus] ?? "neutral"}>
+                {TICKET_LABEL[canonical.ticketStatus] ?? canonical.ticketStatus.replace(/_/g, " ")}
+              </Badge>
+            ) : null}
+          </div>
 
-        <h1 className="text-3xl font-bold text-white">{canonical.artistName}</h1>
+          <h1 className="font-display text-4xl font-bold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] sm:text-5xl">
+            {canonical.artistName}
+          </h1>
 
-        {canonical.festivalName ? (
-          <p className="text-white/60">{canonical.festivalName}</p>
-        ) : null}
-
-        {supportActs.length > 0 ? (
-          <p className="flex flex-wrap items-center gap-1.5 text-sm text-white/55">
-            <Music2 className="h-4 w-4 text-accent-soft" />
-            <span className="text-white/45">met</span>
-            {supportActs.join(", ")}
-          </p>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/70">
-          <span className="inline-flex items-center gap-1.5">
-            <CalendarPlus className="h-4 w-4 text-accent-soft" />
-            {formatDate(eventDate)}
-          </span>
-          {canonical.startTime ? (
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-accent-soft" />
-              {canonical.startTime}
-            </span>
+          {canonical.festivalName ? (
+            <p className="text-white/70">{canonical.festivalName}</p>
           ) : null}
+
+          {supportActs.length > 0 ? (
+            <p className="flex flex-wrap items-center gap-1.5 text-sm text-white/65">
+              <Music2 className="h-4 w-4 text-accent-soft" />
+              <span className="text-white/50">met</span>
+              {supportActs.join(", ")}
+            </p>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/75">
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarPlus className="h-4 w-4 text-accent-soft" />
+              {formatDate(eventDate)}
+            </span>
+            {canonical.startTime ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-accent-soft" />
+                {canonical.startTime}
+              </span>
+            ) : null}
+          </div>
         </div>
       </header>
 

@@ -12,7 +12,7 @@ const buttonVariants = cva(
         primary:
           "bg-accent-grad text-white shadow-glow hover:shadow-glow-lg hover:brightness-110",
         ghost: "text-white/75 hover:bg-white/5 hover:text-white",
-        outline: "border border-white/12 text-white hover:border-white/25 hover:bg-white/5",
+        outline: "border border-white/15 text-white hover:border-white/25 hover:bg-white/5",
         subtle: "bg-white/[0.06] text-white hover:bg-white/10",
         danger: "bg-red-500/90 text-white hover:bg-red-500",
       },
@@ -38,6 +38,21 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
+export interface ButtonLinkProps
+  extends React.AnchorHTMLAttributes<HTMLAnchorElement>,
+    VariantProps<typeof buttonVariants> {}
+
+/**
+ * A link styled as a button. Use for navigation instead of nesting a
+ * <button> inside an <a> — that's invalid HTML and a double tab stop.
+ */
+export const ButtonLink = React.forwardRef<HTMLAnchorElement, ButtonLinkProps>(
+  ({ className, variant, size, ...props }, ref) => (
+    <a ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+  ),
+);
+ButtonLink.displayName = "ButtonLink";
+
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("card p-4", className)} {...props} />;
 }
@@ -53,8 +68,8 @@ export function Badge({
     neutral: "bg-white/[0.07] text-white/65 ring-1 ring-inset ring-white/5",
     accent: "bg-accent/15 text-accent-soft ring-1 ring-inset ring-accent/25",
     success: "bg-glow/10 text-glow ring-1 ring-inset ring-glow/25",
-    warning: "bg-amber-500/12 text-amber-300 ring-1 ring-inset ring-amber-500/25",
-    danger: "bg-red-500/12 text-red-300 ring-1 ring-inset ring-red-500/25",
+    warning: "bg-amber-500/10 text-amber-300 ring-1 ring-inset ring-amber-500/25",
+    danger: "bg-red-500/10 text-red-300 ring-1 ring-inset ring-red-500/25",
   };
   return <span className={cn("pill", tones[tone], className)} {...props} />;
 }

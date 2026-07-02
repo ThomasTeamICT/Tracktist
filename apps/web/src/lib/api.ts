@@ -13,6 +13,8 @@ export function json<T>(data: T, init?: ResponseInit): NextResponse {
 }
 
 export const unauthorized = () => NextResponse.json({ error: "unauthorized" }, { status: 401 });
+export const forbidden = (message = "forbidden") =>
+  NextResponse.json({ error: message }, { status: 403 });
 export const badRequest = (message: string) => NextResponse.json({ error: message }, { status: 400 });
 export const notFound = (message = "not found") => NextResponse.json({ error: message }, { status: 404 });
 export const serverError = (message = "internal error") =>

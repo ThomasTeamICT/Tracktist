@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { CanonicalEvent } from "@tracktist/core";
 import { canonicalKey } from "@tracktist/core";
-import { apiUser, badRequest, json, unauthorized } from "@/lib/api";
+import { apiUser, badRequest, forbidden, json, unauthorized } from "@/lib/api";
+import { isAdminEmail } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { persistArtistEvents } from "@/lib/sync";
 
@@ -23,10 +24,15 @@ const schema = z.object({
  * POST /api/import/manual — admin fallback for local/missing shows (brief §4.1).
  * Persisted through the same canonical pipeline so dedupe/relevance treat it
  * identically to provider data.
+ *
+ * Admin-only (ADMIN_EMAILS): manual events land in the SHARED event pool, so
+ * an unrestricted endpoint would let any user inject fake shows — including
+ * phishing ticket URLs — into everyone's agenda.
  */
 export async function POST(req: Request) {
   const user = await apiUser();
   if (!user) return unauthorized();
+  if (!isAdminEmail(user.email)) return forbidden("alleen voor beheerders");
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest("invalid manual event");
   const d = parsed.data;

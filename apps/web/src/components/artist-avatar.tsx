@@ -1,4 +1,5 @@
 import { GradientAvatar } from "./ui";
+import { displayImageUrl } from "@/lib/images";
 import { cn } from "@/lib/utils";
 
 /**
@@ -18,11 +19,12 @@ export function ArtistAvatar({
   rounded?: "xl" | "full";
   className?: string;
 }) {
-  if (imageUrl) {
+  const src = displayImageUrl(imageUrl);
+  if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={imageUrl}
+        src={src}
         alt={name}
         loading="lazy"
         width={size}

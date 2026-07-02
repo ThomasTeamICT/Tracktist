@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Search,
@@ -14,6 +15,7 @@ import {
   CalendarCheck,
 } from "lucide-react";
 import { Badge, Button, Card, Input, SectionTitle } from "@/components/ui";
+import { displayImageUrl } from "@/lib/images";
 
 /* ------------------------------------------------------------------ */
 /* Types (loose shapes matching the documented JSON API)              */
@@ -354,13 +356,22 @@ function ArtistCard({
         <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white/5 text-accent-soft">
           {artist.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={artist.imageUrl} alt="" className="h-full w-full object-cover" />
+            <img
+              src={displayImageUrl(artist.imageUrl) ?? undefined}
+              alt=""
+              className="h-full w-full object-cover"
+            />
           ) : (
             <Music2 className="h-5 w-5" />
           )}
         </span>
         <div className="min-w-0">
-          <p className="truncate font-semibold text-white">{artist.name}</p>
+          <Link
+            href={`/artists/${artist.id}`}
+            className="block truncate font-semibold text-white transition hover:text-accent-soft"
+          >
+            {artist.name}
+          </Link>
           {artist.disambiguation ? (
             <p className="truncate text-sm text-white/55">{artist.disambiguation}</p>
           ) : null}

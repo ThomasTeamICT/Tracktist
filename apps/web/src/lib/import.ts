@@ -40,7 +40,10 @@ async function importNames(userId: string, names: string[]): Promise<ImportOutco
     try {
       const artist = await resolver.resolve(name);
       if (artist) {
-        const res = await followResolvedArtist(userId, artist, { sync: true });
+        // sync: false — a 200-name import must not fire 200 concurrent
+        // provider pipelines. New artists have lastSyncedAt = null, so the
+        // background tick picks them up first, within the rate budget.
+        const res = await followResolvedArtist(userId, artist, { sync: false });
         outcome.followed.push({ name: artist.name, artistId: res.artistId });
         continue;
       }

@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { Ticket, CalendarPlus, MapPin, Users, Calendar } from "lucide-react";
 import type { GlobeEventDTO } from "@/lib/serialize";
-import { Badge, Button, gradientFromName } from "@/components/ui";
-import { cn, formatDate, formatDistance } from "@/lib/utils";
+import { Badge, ButtonLink, gradientFromName } from "@/components/ui";
+import { cn, cssBgUrl, formatDate, formatDistance } from "@/lib/utils";
 
-const TICKET_TONE: Record<string, "accent" | "neutral" | "danger" | "warning" | "success"> = {
+export const TICKET_TONE: Record<string, "accent" | "neutral" | "danger" | "warning" | "success"> = {
   available: "success",
   presale: "warning",
   sold_out: "neutral",
   cancelled: "danger",
   unknown: "neutral",
 };
-const TICKET_LABEL: Record<string, string> = {
+export const TICKET_LABEL: Record<string, string> = {
   available: "tickets",
   presale: "presale",
   sold_out: "uitverkocht",
@@ -19,7 +19,8 @@ const TICKET_LABEL: Record<string, string> = {
   unknown: "ticketstatus ?",
 };
 
-export function EventCard({ event, friendCount = 0 }: { event: GlobeEventDTO; friendCount?: number }) {
+export function EventCard({ event, friendCount }: { event: GlobeEventDTO; friendCount?: number }) {
+  const friends = friendCount ?? event.friendCount ?? 0;
   return (
     <div className="card group flex animate-fade-up flex-col overflow-hidden p-0 transition-all duration-200 hover:-translate-y-1 hover:border-white/20 hover:shadow-glow">
       {/* Cover — real artist photo, or the artist's identity gradient. */}
@@ -28,7 +29,7 @@ export function EventCard({ event, friendCount = 0 }: { event: GlobeEventDTO; fr
           className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
           style={
             event.artistImageUrl
-              ? { backgroundImage: `url("${event.artistImageUrl}")` }
+              ? { backgroundImage: cssBgUrl(event.artistImageUrl) }
               : { backgroundImage: gradientFromName(event.artistName) }
           }
         />
@@ -69,9 +70,9 @@ export function EventCard({ event, friendCount = 0 }: { event: GlobeEventDTO; fr
             {TICKET_LABEL[event.ticketStatus] ?? event.ticketStatus}
           </Badge>
           {event.lowConfidence ? <Badge tone="warning">nog niet bevestigd</Badge> : null}
-          {friendCount > 0 ? (
-            <Badge tone="neutral">
-              <Users className="h-3 w-3" /> {friendCount}
+          {friends > 0 ? (
+            <Badge tone="neutral" title={`${friends} vriend(en) geïnteresseerd`}>
+              <Users className="h-3 w-3" /> {friends}
             </Badge>
           ) : null}
           {event.sources.map((s) => (
@@ -81,15 +82,24 @@ export function EventCard({ event, friendCount = 0 }: { event: GlobeEventDTO; fr
 
         <div className="mt-auto flex gap-2 pt-1">
           {event.hasTicketLink ? (
-            <a href={`/api/events/${event.eventId}/ticket-link`} target="_blank" rel="noreferrer" className="flex-1">
-              <Button size="sm" className="w-full"><Ticket className="h-4 w-4" /> Tickets</Button>
-            </a>
+            <ButtonLink
+              href={`/api/events/${event.eventId}/ticket-link`}
+              target="_blank"
+              rel="noreferrer"
+              size="sm"
+              className="flex-1"
+            >
+              <Ticket className="h-4 w-4" /> Tickets
+            </ButtonLink>
           ) : null}
-          <a href={`/api/events/${event.eventId}/calendar`} className={event.hasTicketLink ? "" : "flex-1"}>
-            <Button size="sm" variant="outline" className="w-full">
-              <CalendarPlus className="h-4 w-4" /> Agenda
-            </Button>
-          </a>
+          <ButtonLink
+            href={`/api/events/${event.eventId}/calendar`}
+            size="sm"
+            variant="outline"
+            className={event.hasTicketLink ? "" : "flex-1"}
+          >
+            <CalendarPlus className="h-4 w-4" /> Agenda
+          </ButtonLink>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma.js";
 import { syncArtist } from "./sync.js";
-import { notifyUser } from "./notify.js";
+import { notifyUser, runWeeklyDigests } from "./notify.js";
 
 /**
  * The background "tick" the worker drives (brief §5.2): sync artists that are
@@ -9,7 +9,9 @@ import { notifyUser } from "./notify.js";
  * the web app so all DB/sync logic has a single home; the worker is a thin
  * scheduler that calls /api/internal/tick.
  */
-export async function runSyncTick(opts: { limit?: number; staleHours?: number } = {}) {
+export async function runSyncTick(
+  opts: { limit?: number; staleHours?: number; digest?: boolean } = {},
+) {
   const limit = opts.limit ?? 25;
   const staleHours = opts.staleHours ?? 24;
   const cutoff = new Date(Date.now() - staleHours * 3_600_000);
@@ -52,5 +54,11 @@ export async function runSyncTick(opts: { limit?: number; staleHours?: number } 
     }
   }
 
-  return { artistsSynced: dueArtists.length, syncedEvents, notificationsTouched: notified };
+  // Weekly digest pass (idempotent per ISO week — safe to trigger repeatedly).
+  let digests: { users: number; bundled: number } | undefined;
+  if (opts.digest) {
+    digests = await runWeeklyDigests();
+  }
+
+  return { artistsSynced: dueArtists.length, syncedEvents, notificationsTouched: notified, digests };
 }

@@ -56,9 +56,11 @@ export class MusicBrainzClient {
 
   /** Search artists by name; results are ordered by MusicBrainz relevance. */
   async searchArtists(name: string, limit = 8): Promise<MbArtist[]> {
+    // Quote the whole name as a phrase — unquoted, Lucene binds only the
+    // first token to `artist:` ("The National" → artist:The AND National).
     const url =
       `${this.baseUrl}/artist` +
-      qs({ query: `artist:${escapeLucene(name)}`, fmt: "json", limit });
+      qs({ query: `artist:"${escapeLucenePhrase(name)}"`, fmt: "json", limit });
     const data = await fetchJson<MbSearchResponse>(url, {
       fetchImpl: this.fetchImpl,
       rateLimiter: this.rateLimiter,
@@ -97,4 +99,9 @@ export function officialWebsiteFromRelations(
 /** Escape Lucene special characters in a MusicBrainz query term. */
 export function escapeLucene(input: string): string {
   return input.replace(/([+\-!(){}\[\]^"~*?:\\/&|])/g, "\\$1");
+}
+
+/** Escape a value used inside a quoted Lucene phrase (only `"` and `\`). */
+export function escapeLucenePhrase(input: string): string {
+  return input.replace(/(["\\])/g, "\\$1");
 }

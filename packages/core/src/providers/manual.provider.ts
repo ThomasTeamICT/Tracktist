@@ -27,11 +27,23 @@ export class ManualProvider implements EventProvider {
   }
 
   async fetchEventsForArtist(query: EventQuery): Promise<NormalizedEvent[]> {
-    const keys = [query.mbid, query.externalIds?.mbid, query.artistName.toLowerCase()].filter(
-      (k): k is string => Boolean(k),
+    // Set: mbid and externalIds.mbid are usually the same key — without
+    // dedupe every event would be returned twice.
+    const keys = new Set(
+      [query.mbid, query.externalIds?.mbid, query.artistName.toLowerCase()].filter(
+        (k): k is string => Boolean(k),
+      ),
     );
+    const seen = new Set<NormalizedEvent>();
     const out: NormalizedEvent[] = [];
-    for (const key of keys) out.push(...(this.byKey.get(key) ?? []));
+    for (const key of keys) {
+      for (const e of this.byKey.get(key) ?? []) {
+        if (!seen.has(e)) {
+          seen.add(e);
+          out.push(e);
+        }
+      }
+    }
     let events = out;
     if (query.from) events = events.filter((e) => e.date >= query.from!);
     return events;

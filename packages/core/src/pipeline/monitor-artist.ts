@@ -2,6 +2,7 @@ import type { ArtistExternalIds } from "../types/artist.js";
 import type { CanonicalEvent, NormalizedEvent, ProviderName } from "../types/event.js";
 import type { EventProvider } from "../types/provider.js";
 import { dedupeEvents, DEFAULT_DEDUPE_OPTIONS, type DedupeOptions } from "../dedupe/dedupe.js";
+import { normalizeName, similarity } from "../util/text.js";
 
 /**
  * Artist-level monitoring pipeline (brief §5.5, steps 1–6 + 11).
@@ -56,24 +57,36 @@ export async function monitorArtist(input: MonitorArtistInput): Promise<MonitorA
   const perProvider: ProviderOutcome[] = [];
   const resolvedExternalIds: ArtistExternalIds = { ...input.artist.externalIds };
 
-  for (const provider of input.providers) {
-    if (!provider.isEnabled()) {
-      perProvider.push({ provider: provider.name, ok: true, count: 0 });
-      continue;
-    }
-    try {
-      const events = await provider.fetchEventsForArtist(query);
-      normalized.push(...events);
-      perProvider.push({ provider: provider.name, ok: true, count: events.length });
-      backfillExternalIds(provider.name, events, resolvedExternalIds);
-    } catch (err) {
-      // Provider failure must not sink the whole sync (brief §5.2.7 fallback).
-      perProvider.push({
-        provider: provider.name,
-        ok: false,
-        count: 0,
-        error: err instanceof Error ? err.message : String(err),
-      });
+  // Fetch providers concurrently — each has its own rate limiter, so sync
+  // latency is the slowest provider, not the sum of all of them.
+  const outcomes = await Promise.all(
+    input.providers.map(async (provider) => {
+      if (!provider.isEnabled()) {
+        return { provider, events: [] as NormalizedEvent[], outcome: { provider: provider.name, ok: true, count: 0 } };
+      }
+      try {
+        const events = await provider.fetchEventsForArtist(query);
+        return { provider, events, outcome: { provider: provider.name, ok: true, count: events.length } };
+      } catch (err) {
+        // Provider failure must not sink the whole sync (brief §5.2.7 fallback).
+        return {
+          provider,
+          events: [] as NormalizedEvent[],
+          outcome: {
+            provider: provider.name,
+            ok: false,
+            count: 0,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        };
+      }
+    }),
+  );
+  for (const { provider, events, outcome } of outcomes) {
+    normalized.push(...events);
+    perProvider.push(outcome);
+    if (outcome.ok && events.length > 0) {
+      backfillExternalIds(provider.name, events, resolvedExternalIds, input.artist.name);
     }
   }
 
@@ -86,10 +99,11 @@ function backfillExternalIds(
   provider: ProviderName,
   events: NormalizedEvent[],
   into: ArtistExternalIds,
+  artistName: string,
 ): void {
   if (provider === "ticketmaster" && !into.ticketmasterAttractionId) {
     for (const e of events) {
-      const id = extractTmAttractionId(e.rawPayload);
+      const id = extractTmAttractionId(e.rawPayload, artistName);
       if (id) {
         into.ticketmasterAttractionId = id;
         break;
@@ -98,8 +112,20 @@ function backfillExternalIds(
   }
 }
 
-function extractTmAttractionId(raw: unknown): string | undefined {
+/**
+ * The attraction id of the attraction whose NAME matches the queried artist —
+ * never blindly the first one, or a fuzzy keyword hit would permanently cache
+ * another act's id (§4.3: resolve once, so a wrong cache is sticky).
+ */
+function extractTmAttractionId(raw: unknown, artistName: string): string | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const embedded = (raw as { _embedded?: { attractions?: { id?: string }[] } })._embedded;
-  return embedded?.attractions?.[0]?.id;
+  const embedded = (raw as { _embedded?: { attractions?: { id?: string; name?: string }[] } })
+    ._embedded;
+  const target = normalizeName(artistName);
+  for (const a of embedded?.attractions ?? []) {
+    if (!a.id || !a.name) continue;
+    const name = normalizeName(a.name);
+    if (name === target || similarity(name, target) >= 0.9) return a.id;
+  }
+  return undefined;
 }

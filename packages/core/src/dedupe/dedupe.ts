@@ -180,13 +180,28 @@ function preferLonger(a: string | undefined, b: string | undefined): string | un
   return a.length >= b.length ? a : b;
 }
 
+/** Provider priority for picking a stable cluster representative. */
+const PROVIDER_ORDER: Record<string, number> = {
+  ticketmaster: 0,
+  bandsintown: 1,
+  setlistfm: 2,
+  manual: 3,
+};
+
 /** Build one canonical event from a cluster of same-event normalized records. */
 export function mergeCluster(
   cluster: NormalizedEvent[],
   opts: DedupeOptions = DEFAULT_DEDUPE_OPTIONS,
 ): CanonicalEvent {
-  // Representative = most complete (has coords, then most fields).
-  const rep = [...cluster].sort((a, b) => completeness(b) - completeness(a))[0]!;
+  // Representative = most complete (has coords, then most fields). Ties are
+  // broken deterministically (provider order, then sourceId) so the same
+  // cluster always yields the same canonical key across syncs.
+  const rep = [...cluster].sort(
+    (a, b) =>
+      completeness(b) - completeness(a) ||
+      (PROVIDER_ORDER[a.source.provider] ?? 9) - (PROVIDER_ORDER[b.source.provider] ?? 9) ||
+      a.source.sourceId.localeCompare(b.source.sourceId),
+  )[0]!;
   const sources = dedupeSources(cluster);
 
   const { status, conflict: statusConflict } = pickStatus(cluster);
@@ -278,8 +293,38 @@ export function dedupeEvents(
     clusters.set(root, list);
   }
   return [...clusters.values()]
+    .flatMap(splitResidency)
     .map((cluster) => mergeCluster(cluster, opts))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Guard against multi-night residencies collapsing into one event: the day
+ * tolerance (for cross-source timezone shifts) can transitively union two
+ * consecutive nights at the same venue. But when a SINGLE provider lists
+ * multiple distinct dates in one cluster, those are separate shows by
+ * definition — re-split the cluster by date so no night is dropped.
+ */
+function splitResidency(cluster: NormalizedEvent[]): NormalizedEvent[][] {
+  const dates = new Set(cluster.map((e) => e.date));
+  if (dates.size <= 1) return [cluster];
+
+  const datesPerProvider = new Map<string, Set<string>>();
+  for (const e of cluster) {
+    const set = datesPerProvider.get(e.source.provider) ?? new Set<string>();
+    set.add(e.date);
+    datesPerProvider.set(e.source.provider, set);
+  }
+  const isResidency = [...datesPerProvider.values()].some((s) => s.size > 1);
+  if (!isResidency) return [cluster]; // genuine cross-source day-shift — keep merged
+
+  const byDate = new Map<string, NormalizedEvent[]>();
+  for (const e of cluster) {
+    const list = byDate.get(e.date) ?? [];
+    list.push(e);
+    byDate.set(e.date, list);
+  }
+  return [...byDate.values()];
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────

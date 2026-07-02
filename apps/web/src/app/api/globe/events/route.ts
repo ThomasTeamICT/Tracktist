@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const to = url.searchParams.get("to") ?? undefined;
 
   const agenda = await getUserAgenda(user.id);
-  let events = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db));
+  let events = agenda.map((a) => toGlobeEvent(a.evaluated, a.db.id, a.db, a.friendCount));
   if (from) events = events.filter((e) => e.date >= from);
   if (to) events = events.filter((e) => e.date <= to);
 

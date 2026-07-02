@@ -139,3 +139,11 @@ describe("bestWithinRadius", () => {
     expect(miss).toBeNull();
   });
 });
+
+describe("haversineKm — edge cases", () => {
+  it("never returns NaN for (near-)antipodal points", () => {
+    const km = haversineKm({ lat: 0, lng: 0 }, { lat: 0, lng: 180 });
+    expect(Number.isNaN(km)).toBe(false);
+    expect(km).toBeGreaterThan(20000);
+  });
+});

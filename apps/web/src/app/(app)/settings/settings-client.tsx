@@ -22,6 +22,7 @@ import {
   Save,
 } from "lucide-react";
 import { Badge, Button, Card, Input, SectionTitle } from "@/components/ui";
+import { subscribeToWebPush } from "@/lib/push-client";
 
 /* ------------------------------ local types ------------------------------ */
 
@@ -498,6 +499,7 @@ function AddAnchor({
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState<GeoPlace[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
   const [selected, setSelected] = useState<GeoPlace | null>(null);
   const [radius, setRadius] = useState(150);
   const [locating, setLocating] = useState(false);
@@ -510,9 +512,11 @@ function AddAnchor({
     if (q.length < 2) {
       setPlaces([]);
       setSearching(false);
+      setSearchNote(null);
       return;
     }
     setSearching(true);
+    setSearchNote(null);
     debounce.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
@@ -521,8 +525,12 @@ function AddAnchor({
         if (!res.ok) throw new Error("geocode mislukt");
         const data: { places?: GeoPlace[] } = await res.json();
         setPlaces(data.places ?? []);
+        setSearchNote(
+          (data.places ?? []).length === 0 ? `Geen plaatsen gevonden voor "${q}".` : null,
+        );
       } catch {
         setPlaces([]);
+        setSearchNote("Zoeken is even niet beschikbaar. Probeer het opnieuw.");
       } finally {
         setSearching(false);
       }
@@ -668,6 +676,10 @@ function AddAnchor({
           </ul>
         ) : null}
 
+        {searchNote && !selected && !searching ? (
+          <p className="text-sm text-white/55">{searchNote}</p>
+        ) : null}
+
         <Button type="button" variant="subtle" size="sm" onClick={useMyLocation} disabled={locating}>
           {locating ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -751,6 +763,25 @@ function NotificationsSection({
     setPrefs((p) => ({ ...p, [key]: value }));
   }
 
+  /** Turning push ON must actually subscribe this browser, not just save a flag. */
+  async function togglePush(on: boolean) {
+    if (!on) {
+      set("webPush", false);
+      return;
+    }
+    set("webPush", true);
+    const result = await subscribeToWebPush();
+    if (result !== "enabled") {
+      set("webPush", false);
+      notify(
+        "danger",
+        result === "denied"
+          ? "Je browser gaf geen toestemming voor meldingen."
+          : "Pushmeldingen zijn niet beschikbaar in deze browser.",
+      );
+    }
+  }
+
   function addCountry() {
     const code = countryInput.trim().toUpperCase();
     setCountryInput("");
@@ -817,7 +848,7 @@ function NotificationsSection({
             label="Pushmeldingen"
             description="Realtime meldingen in je browser."
             checked={prefs.webPush}
-            onChange={(v) => set("webPush", v)}
+            onChange={(v) => void togglePush(v)}
           />
           <Toggle
             label="E-mail"
@@ -1085,6 +1116,23 @@ function PrivacySection({
 /* ---------------------------- accounts section ---------------------------- */
 
 function AccountsSection({ user }: { user: MeUser | null }) {
+  // Reflect the browser's REAL push subscription instead of a hardcoded "no".
+  const [pushConnected, setPushConnected] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => reg?.pushManager.getSubscription())
+      .then((sub) => {
+        if (alive) setPushConnected(Boolean(sub));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const providers = [
     {
       key: "email",
@@ -1097,8 +1145,8 @@ function AccountsSection({ user }: { user: MeUser | null }) {
       key: "push",
       label: "Pushmeldingen",
       icon: <BellRing className="h-4 w-4" />,
-      connected: false,
-      detail: null,
+      connected: pushConnected,
+      detail: pushConnected ? "deze browser" : null,
     },
     {
       key: "inapp",

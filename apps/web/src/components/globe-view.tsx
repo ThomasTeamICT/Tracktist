@@ -20,11 +20,13 @@ const Globe3D = dynamic(() => import("@/components/globe-3d").then((m) => m.Glob
 export function GlobeView({ events, anchors }: { events: GlobeEventDTO[]; anchors: AnchorPin[] }) {
   const [mode, setMode] = useState<"3d" | "2d">("3d");
   const [selected, setSelected] = useState<GlobeEventDTO | null>(null);
-  const [monthIdx, setMonthIdx] = useState(12);
+  // null = "Alles" — a fixed numeric default would silently pick one month
+  // when the agenda spans more months than the default index.
+  const [monthIdx, setMonthIdx] = useState<number | null>(null);
 
   const months = useMemo(() => buildMonthBuckets(events), [events]);
   const filtered = useMemo(() => {
-    if (monthIdx >= months.length) return events;
+    if (monthIdx === null || monthIdx >= months.length) return events;
     const bucket = months[monthIdx];
     return events.filter((e) => e.date.slice(0, 7) === bucket?.key);
   }, [events, months, monthIdx]);
@@ -67,12 +69,16 @@ export function GlobeView({ events, anchors }: { events: GlobeEventDTO[]; anchor
                   type="range"
                   min={0}
                   max={months.length}
-                  value={monthIdx}
-                  onChange={(e) => setMonthIdx(Number(e.target.value))}
+                  value={monthIdx ?? months.length}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setMonthIdx(v >= months.length ? null : v);
+                  }}
                   className="flex-1 accent-accent"
+                  aria-label="Filter optredens op maand"
                 />
                 <span className="w-24 text-right text-xs text-white/70">
-                  {monthIdx >= months.length ? "Alles" : months[monthIdx]?.label}
+                  {monthIdx === null ? "Alles" : months[monthIdx]?.label}
                 </span>
               </div>
             ) : null}

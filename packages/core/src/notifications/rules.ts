@@ -53,6 +53,14 @@ export interface NotificationContext {
   followRules: ArtistFollowRules;
   friendCount: number;
   hasTicketLink: boolean;
+  /** The user has already been notified about this event before. */
+  previouslyNotified?: boolean;
+  /**
+   * The user was recently notified about another show of this artist —
+   * used by the `only_new_tours` follow mode (one ping per announcement
+   * wave, not one per show).
+   */
+  recentArtistNotification?: boolean;
 }
 
 export interface NotificationDecision {
@@ -92,6 +100,31 @@ function isWeekend(isoDate: string): boolean {
   return day === 0 || day === 6; // Sun or Sat
 }
 
+/**
+ * Is `at` inside the quiet-hours window? Supports windows that cross
+ * midnight ("22:00"–"08:00"). Uses the local time of `at`; delivery layers
+ * defer dispatch (not creation) while this is true.
+ */
+export function isInQuietHours(
+  quietHours: NotificationPreferences["quietHours"],
+  at: Date,
+): boolean {
+  if (!quietHours) return false;
+  const toMinutes = (hhmm: string): number | null => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+    if (!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if (h > 23 || min > 59) return null;
+    return h * 60 + min;
+  };
+  const start = toMinutes(quietHours.start);
+  const end = toMinutes(quietHours.end);
+  if (start === null || end === null || start === end) return false;
+  const now = at.getHours() * 60 + at.getMinutes();
+  return start < end ? now >= start && now < end : now >= start || now < end;
+}
+
 export function evaluateNotification(
   ctx: NotificationContext,
   prefs: NotificationPreferences,
@@ -106,13 +139,23 @@ export function evaluateNotification(
 
   const isMustSee = ctx.priority === "must_see";
 
-  // High-importance lifecycle changes bypass distance/digest entirely.
+  // High-importance lifecycle changes bypass distance/digest — but only for
+  // shows the user actually knew about, and never against an explicit
+  // "dashboard only" wish. A cancellation of a show we never announced to
+  // this user is not news to them.
+  const lifecycleEligible =
+    ctx.previouslyNotified === true && ctx.followRules.mode !== "dashboard_only";
   if (ctx.event.status === "cancelled") {
-    return { notify: true, type: "cancelled", reason: "Event cancelled", dedupeKey: key, digest: false };
+    if (lifecycleEligible) {
+      return { notify: true, type: "cancelled", reason: "Event cancelled", dedupeKey: key, digest: false };
+    }
+    return deny("Cancelled show the user was never notified about");
   }
-  if (ctx.event.status === "rescheduled") {
+  if (ctx.event.status === "rescheduled" && lifecycleEligible) {
     return { notify: true, type: "rescheduled", reason: "Event rescheduled", dedupeKey: key, digest: false };
   }
+  // A rescheduled show the user never knew about falls through and is simply
+  // judged as a (new) show by the normal rules.
 
   // Per-follow rule mode.
   switch (ctx.followRules.mode) {
@@ -134,6 +177,13 @@ export function evaluateNotification(
       if (!ctx.withinRadius && !isMustSee) return deny("Outside notification radius");
       break;
     case "only_new_tours":
+      // One notification per announcement wave: stay quiet while another
+      // show of this artist was recently notified (re-notifies about THIS
+      // event still pass, keyed on previouslyNotified).
+      if (ctx.recentArtistNotification && !ctx.previouslyNotified) {
+        return deny("Tour already announced recently");
+      }
+      break;
     case "always":
       break;
   }
@@ -162,13 +212,24 @@ export function evaluateNotification(
     return deny("Outside notification radius");
   }
 
-  const type: NotificationType = isMustSee ? "new_show_must_see" : "new_show_nearby";
+  // A re-notify for a show the user knows, triggered by tickets going on
+  // sale, is a ticket alert — not another "new show".
+  const isTicketDrop = ctx.previouslyNotified === true && ctx.event.ticketStatus === "available";
+  const type: NotificationType = isTicketDrop
+    ? "tickets_available"
+    : isMustSee
+      ? "new_show_must_see"
+      : "new_show_nearby";
   // Must-see always goes direct; otherwise honour the digest preference.
   const digest = prefs.digest === true && !isMustSee;
   return {
     notify: true,
     type,
-    reason: isMustSee ? "Must-see artist announced a show" : "New show within your radius",
+    reason: isTicketDrop
+      ? "Tickets are now available"
+      : isMustSee
+        ? "Must-see artist announced a show"
+        : "New show within your radius",
     dedupeKey: key,
     digest,
   };

@@ -34,6 +34,9 @@ const schema = z.object({
   MUSICBRAINZ_USER_AGENT: z.string().default("Tracktist/0.1 ( contact@tracktist.app )"),
   LASTFM_API_KEY: z.string().optional(),
 
+  /** Comma-separated emails allowed to use admin endpoints (manual import). */
+  ADMIN_EMAILS: z.string().optional(),
+
   // Web push (VAPID)
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
@@ -47,7 +50,30 @@ if (!parsed.success) {
   console.error("⚠️  Invalid environment configuration:", parsed.error.flatten().fieldErrors);
 }
 
-export const env = (parsed.success ? parsed.data : schema.parse({ DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://localhost:5432/tracktist" }));
+/**
+ * Recovery path when the strict parse fails: repair ONLY the fields that can
+ * fail validation and keep everything else from the real environment. The
+ * fallback must never downgrade NODE_ENV — resetting production to
+ * "development" would re-enable dev-only endpoints like /api/dev/login.
+ */
+function fallbackEnv() {
+  const raw: Record<string, string | undefined> = { ...process.env };
+  if (raw.NODE_ENV !== "production" && raw.NODE_ENV !== "test") raw.NODE_ENV = "development";
+  if (!raw.DATABASE_URL) raw.DATABASE_URL = "postgresql://localhost:5432/tracktist";
+  if (raw.APP_BASE_URL && !/^https?:\/\//.test(raw.APP_BASE_URL)) delete raw.APP_BASE_URL;
+  return schema.parse(raw);
+}
+
+export const env = parsed.success ? parsed.data : fallbackEnv();
+
+/** Is this email allowed to use admin-only endpoints? */
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email || !env.ADMIN_EMAILS) return false;
+  return env.ADMIN_EMAILS.split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(email.toLowerCase());
+}
 
 /** Feature flags derived from which keys are present. */
 export const features = {

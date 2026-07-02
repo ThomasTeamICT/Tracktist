@@ -51,6 +51,10 @@ const ASCII = (s: string): string =>
 export function toCountryCode(input?: string): string | undefined {
   if (!input) return undefined;
   const trimmed = input.trim();
+  // Known names first — so non-ISO shorthands like "UK" map to "GB" instead
+  // of passing through as a bogus code.
+  const mapped = NAME_TO_CODE[ASCII(trimmed)];
+  if (mapped) return mapped;
   if (/^[A-Za-z]{2}$/.test(trimmed)) return trimmed.toUpperCase();
-  return NAME_TO_CODE[ASCII(trimmed)];
+  return undefined;
 }

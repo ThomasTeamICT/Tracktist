@@ -59,3 +59,11 @@ describe("venueSimilarity", () => {
     expect(venueSimilarity("AFAS Live", "Ziggo Dome")).toBeLessThan(0.5);
   });
 });
+
+describe("normalizeName — non-Latin scripts", () => {
+  it("preserves Cyrillic and CJK instead of collapsing to empty", () => {
+    expect(normalizeName("Кино")).toBe("кино");
+    expect(normalizeName("東京事変")).toBe("東京事変");
+    expect(normalizeName("Кино")).not.toBe(normalizeName("Аквариум"));
+  });
+});

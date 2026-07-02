@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiUser, badRequest, json, notFound, unauthorized } from "@/lib/api";
+import { apiUser, badRequest, json, unauthorized } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 const schema = z.object({ email: z.string().email() });
@@ -12,8 +12,11 @@ export async function POST(req: Request) {
   if (!parsed.success) return badRequest("valid email required");
 
   const target = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (!target) return notFound("no Tracktist user with that email");
-  if (target.id === user.id) return badRequest("cannot invite yourself");
+  if (target?.id === user.id) return badRequest("cannot invite yourself");
+
+  // Anti-enumeration: an unknown email gets the same success response as a
+  // real invite, so this endpoint can't be used to probe who has an account.
+  if (!target) return json({ ok: true });
 
   // Reuse any existing friendship in either direction.
   const existing = await prisma.friendship.findFirst({
@@ -24,10 +27,10 @@ export async function POST(req: Request) {
       ],
     },
   });
-  if (existing) return json({ friendship: existing });
+  if (existing) return json({ ok: true, friendship: existing });
 
   const friendship = await prisma.friendship.create({
     data: { requesterId: user.id, addresseeId: target.id, status: "PENDING" },
   });
-  return json({ friendship }, { status: 201 });
+  return json({ ok: true, friendship }, { status: 201 });
 }

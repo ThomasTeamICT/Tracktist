@@ -1,16 +1,43 @@
 {
-  "name": "Tracktist — your personal live-music radar",
+  "name": "Tracktist — jouw persoonlijke live-muziekradar",
   "short_name": "Tracktist",
-  "description": "Follow your favourite artists and get notified when they play within your radius — across borders.",
+  "description": "Volg je favoriete artiesten en krijg een melding zodra ze binnen jouw straal spelen — over de landsgrenzen heen.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0a0a0f",
   "theme_color": "#0a0a0f",
-  "categories": ["music", "lifestyle", "social"],
+  "categories": [
+    "music",
+    "lifestyle",
+    "social"
+  ],
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
-  ]
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "lang": "nl"
 }

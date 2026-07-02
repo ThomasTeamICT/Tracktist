@@ -20,8 +20,12 @@ export function haversineKm(a: GeoPoint, b: GeoPoint): number {
 
   const sinDLat = Math.sin(dLat / 2);
   const sinDLng = Math.sin(dLng / 2);
-  const h =
-    sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+  // Clamp: floating-point error can push h just above 1 for (near-)antipodal
+  // points, and sqrt(negative) would return NaN.
+  const h = Math.min(
+    1,
+    sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng,
+  );
   const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
   return EARTH_RADIUS_KM * c;
 }
@@ -57,12 +61,13 @@ export function distanceForPoint(
   point: GeoPoint | undefined,
 ): DistanceResult | null {
   if (!point) return null;
-  const distanceKm = roundKm(haversineKm(anchor.location, point));
+  const exactKm = haversineKm(anchor.location, point);
   return {
     anchorId: anchor.id,
     anchorLabel: anchor.label,
-    distanceKm,
-    withinRadius: distanceKm <= anchor.radiusKm,
+    distanceKm: roundKm(exactKm),
+    // Decide on the exact distance so this always agrees with isWithinRadius.
+    withinRadius: exactKm <= anchor.radiusKm,
   };
 }
 

@@ -156,14 +156,10 @@ export function NotificationsClient() {
       unread: 0,
     }));
     try {
-      await Promise.all(
-        unreadIds.map((id) =>
-          fetch(`/api/notifications/${id}/read`, {
-            method: "POST",
-            credentials: "same-origin",
-          }),
-        ),
-      );
+      await fetch("/api/notifications/read-all", {
+        method: "POST",
+        credentials: "same-origin",
+      });
     } catch {
       // Best-effort.
     } finally {

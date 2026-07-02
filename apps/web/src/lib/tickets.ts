@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { makeSubId, wrapTicketUrl } from "@tracktist/core";
 import { prisma } from "./prisma.js";
 import { affiliateConfig } from "./integrations.js";
@@ -29,7 +30,13 @@ export async function resolveTicketLink(
   const chosen = sources.find((s) => s.ticketUrl) ?? sources[0];
   if (!chosen?.ticketUrl) return null;
 
-  const subId = makeSubId({ userId, eventId });
+  // Pseudonymize: the sub-id leaves our systems (affiliate network), so it
+  // must never carry the raw internal user id. Deterministic per (user,event)
+  // for idempotent click logging; reversible only via our own AffiliateClick row.
+  const pseudo = userId
+    ? createHash("sha256").update(`tracktist-subid:${userId}`).digest("hex").slice(0, 16)
+    : undefined;
+  const subId = makeSubId({ userId: pseudo, eventId });
   const wrapped = wrapTicketUrl({
     provider: fromDbProvider(chosen.provider),
     rawUrl: chosen.ticketUrl,

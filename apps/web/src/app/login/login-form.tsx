@@ -11,6 +11,7 @@ export function LoginForm({
 }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const anyProvider = providers.google || providers.email;
@@ -29,9 +30,24 @@ export function LoginForm({
           onSubmit={async (e) => {
             e.preventDefault();
             setLoading(true);
-            await signIn("nodemailer", { email, callbackUrl: "/onboarding", redirect: false });
-            setSent(true);
-            setLoading(false);
+            setError(null);
+            setSent(false);
+            try {
+              const res = await signIn("nodemailer", {
+                email,
+                callbackUrl: "/onboarding",
+                redirect: false,
+              });
+              if (res?.error) {
+                setError("Versturen van de inloglink is mislukt. Probeer het opnieuw.");
+              } else {
+                setSent(true);
+              }
+            } catch {
+              setError("Versturen van de inloglink is mislukt. Probeer het opnieuw.");
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           <Input
@@ -49,6 +65,7 @@ export function LoginForm({
               Check je mailbox voor de inloglink.
             </p>
           ) : null}
+          {error ? <p className="text-center text-sm text-rose-300">{error}</p> : null}
         </form>
       ) : null}
 

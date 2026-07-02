@@ -1,6 +1,9 @@
 import "server-only";
 import {
   monitorArtist,
+  normalizeName,
+  similarity,
+  venueSimilarity,
   type ArtistExternalIds,
   type CanonicalEvent,
   type Venue as CoreVenue,
@@ -38,8 +41,42 @@ export async function syncArtist(
     from,
   });
 
+  let persisted = 0;
   for (const event of result.events) {
-    await persistCanonicalEvent(artist.id, event);
+    try {
+      await persistCanonicalEvent({ id: artist.id, name: artist.name }, event);
+      persisted++;
+    } catch (err) {
+      // One poisoned event must not abort the artist's whole sync (and leave
+      // lastSyncedAt unset, wedging this artist at the head of every tick).
+      console.error(`persist failed for event ${event.id}`, err);
+    }
+  }
+
+  // Ghost-show decay: future events of this artist that a live sync no longer
+  // returns slowly lose confidence, so a silently removed listing fades to
+  // "nog niet bevestigd" instead of haunting agendas forever. Only when at
+  // least one live provider actually answered — a fully failed (or key-less)
+  // sync says nothing about the events.
+  const anyLiveProvider = providers.some((p) => p.isEnabled());
+  const anyProviderOk = result.perProvider.some((p) => p.ok);
+  if (anyLiveProvider && anyProviderOk) {
+    const seenKeys = result.events.map((e) => e.id);
+    await prisma.event.updateMany({
+      where: {
+        date: { gte: isoDateToUtc(from) },
+        dedupeKey: { notIn: seenKeys },
+        artists: { some: { artistId: artist.id } },
+        confidenceScore: { gt: 0 },
+        // Manual events are curated on purpose — never decay them.
+        sources: { none: { provider: "MANUAL" } },
+      },
+      data: { confidenceScore: { decrement: 0.15 } },
+    });
+    await prisma.event.updateMany({
+      where: { confidenceScore: { lt: 0 } },
+      data: { confidenceScore: 0 },
+    });
   }
 
   // Cache the Ticketmaster attraction id we discovered (resolve once — §4.3).
@@ -65,7 +102,7 @@ export async function syncArtist(
     });
   }
 
-  return { eventCount: result.events.length };
+  return { eventCount: persisted };
 }
 
 /** Persist a batch of canonical events for an artist (worker/tests reuse this). */
@@ -73,10 +110,18 @@ export async function persistArtistEvents(
   headlinerArtistId: string,
   events: CanonicalEvent[],
 ): Promise<void> {
-  for (const ev of events) await persistCanonicalEvent(headlinerArtistId, ev);
+  const artist = await prisma.artist.findUnique({
+    where: { id: headlinerArtistId },
+    select: { id: true, name: true },
+  });
+  if (!artist) throw new Error(`Artist ${headlinerArtistId} not found`);
+  for (const ev of events) await persistCanonicalEvent(artist, ev);
 }
 
-async function persistCanonicalEvent(headlinerArtistId: string, ev: CanonicalEvent): Promise<void> {
+async function persistCanonicalEvent(
+  syncedArtist: { id: string; name: string },
+  ev: CanonicalEvent,
+): Promise<void> {
   const venue = await getOrCreateVenue(ev.venue);
 
   const common = {
@@ -97,16 +142,74 @@ async function persistCanonicalEvent(headlinerArtistId: string, ev: CanonicalEve
     lastCheckedAt: new Date(ev.lastCheckedAt),
   };
 
-  const dbEvent = await prisma.event.upsert({
-    where: { dedupeKey: ev.id },
-    create: { dedupeKey: ev.id, firstSeenAt: new Date(ev.firstSeenAt), ...common },
-    update: common,
-  });
+  // The canonical key can drift: a cluster gains/loses a source (different
+  // representative venue spelling, late MBID) or the show is RESCHEDULED to a
+  // new date. Before creating a "new" event, re-attach to the existing row —
+  // first via the strongest anchor (a shared provider sourceId), then via
+  // same-artist/same-day venue similarity. Otherwise every drift or
+  // reschedule would duplicate the show and orphan the old row.
+  let dbEvent = await prisma.event.findUnique({ where: { dedupeKey: ev.id } });
+  if (dbEvent) {
+    dbEvent = await prisma.event.update({ where: { id: dbEvent.id }, data: common });
+  }
+  if (!dbEvent && ev.sources.length > 0) {
+    const bySource = await prisma.eventSource.findFirst({
+      where: {
+        OR: ev.sources.map((s) => ({
+          provider: toDbProvider(s.provider),
+          sourceId: s.sourceId,
+        })),
+      },
+      select: { eventId: true },
+    });
+    if (bySource) {
+      dbEvent = await prisma.event
+        .update({
+          where: { id: bySource.eventId },
+          data: { dedupeKey: ev.id, ...common },
+        })
+        // Unique race (another tick just claimed the key): fall through.
+        .catch(() => null);
+    }
+  }
+  if (!dbEvent) {
+    const sameDay = await prisma.event.findMany({
+      where: {
+        date: isoDateToUtc(ev.date),
+        artists: { some: { artistId: syncedArtist.id } },
+      },
+      include: { venue: true },
+    });
+    const drifted = sameDay.find((c) => venueSimilarity(c.venue.name, ev.venue.name) >= 0.6);
+    if (drifted) {
+      dbEvent = await prisma.event
+        .update({
+          where: { id: drifted.id },
+          data: { dedupeKey: ev.id, ...common },
+        })
+        .catch(() => null);
+    }
+  }
+  if (!dbEvent) {
+    dbEvent = await prisma.event.upsert({
+      where: { dedupeKey: ev.id },
+      create: { dedupeKey: ev.id, firstSeenAt: new Date(ev.firstSeenAt), ...common },
+      update: common,
+    });
+  }
 
+  // The synced artist headlines only when the canonical event says so — on a
+  // co-billed show where they support, don't mislabel them as headliner.
+  const isHeadliner = sameArtistName(syncedArtist.name, ev.artistName);
   await prisma.eventArtist.upsert({
-    where: { eventId_artistId: { eventId: dbEvent.id, artistId: headlinerArtistId } },
-    create: { eventId: dbEvent.id, artistId: headlinerArtistId, headliner: true, position: 0 },
-    update: { headliner: true },
+    where: { eventId_artistId: { eventId: dbEvent.id, artistId: syncedArtist.id } },
+    create: {
+      eventId: dbEvent.id,
+      artistId: syncedArtist.id,
+      headliner: isHeadliner,
+      position: isHeadliner ? 0 : 1,
+    },
+    update: { headliner: isHeadliner },
   });
 
   for (const s of ev.sources) {
@@ -130,6 +233,13 @@ async function persistCanonicalEvent(headlinerArtistId: string, ev: CanonicalEve
   }
 }
 
+/** Same act, allowing for cosmetic cross-source name differences. */
+function sameArtistName(a: string, b: string): boolean {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  return na === nb || similarity(na, nb) >= 0.85;
+}
+
 async function getOrCreateVenue(v: CoreVenue) {
   const existing = await prisma.venue.findFirst({
     where: { name: v.name, city: v.city ?? null },
@@ -151,18 +261,25 @@ async function getOrCreateVenue(v: CoreVenue) {
     }
     return existing;
   }
-  return prisma.venue.create({
-    data: {
-      name: v.name,
-      city: v.city ?? null,
-      country: v.country ?? null,
-      countryCode: v.countryCode ?? null,
-      address: v.address ?? null,
-      latitude: v.location?.lat ?? null,
-      longitude: v.location?.lng ?? null,
-      timezone: v.timezone ?? null,
-    },
-  });
+  try {
+    return await prisma.venue.create({
+      data: {
+        name: v.name,
+        city: v.city ?? null,
+        country: v.country ?? null,
+        countryCode: v.countryCode ?? null,
+        address: v.address ?? null,
+        latitude: v.location?.lat ?? null,
+        longitude: v.location?.lng ?? null,
+        timezone: v.timezone ?? null,
+      },
+    });
+  } catch {
+    // Unique (name, city) race with a concurrent sync: the row exists now.
+    const raced = await prisma.venue.findFirst({ where: { name: v.name, city: v.city ?? null } });
+    if (raced) return raced;
+    throw new Error(`Venue create failed for ${v.name}`);
+  }
 }
 
 export function mapExternalIds(

@@ -32,6 +32,13 @@ export interface EvaluateForUserInput {
   prefs: NotificationPreferences;
   /** Optional friend interest counts keyed by event id. */
   friendCountByEvent?: Map<string, number>;
+  /** Event ids (canonical/dedupe keys) the user was already notified about. */
+  previouslyNotifiedEventIds?: Set<string>;
+  /**
+   * Artist keys (MBID and lowercased name) with a recent notification —
+   * powers the `only_new_tours` follow mode.
+   */
+  recentArtistNotifications?: Set<string>;
   /** Injected clock for deterministic date scoring. */
   now?: Date;
 }
@@ -91,6 +98,10 @@ export function evaluateEventsForUser(input: EvaluateForUserInput): EvaluatedEve
         followRules: rules,
         friendCount,
         hasTicketLink: event.sources.some((s) => Boolean(s.ticketUrl)),
+        previouslyNotified: input.previouslyNotifiedEventIds?.has(event.id) ?? false,
+        recentArtistNotification: followKey(event).some((k) =>
+          input.recentArtistNotifications?.has(k),
+        ),
       },
       input.prefs,
     );

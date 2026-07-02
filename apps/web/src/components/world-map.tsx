@@ -252,7 +252,7 @@ export function MarkerDetail({ event, onClose }: { event: GlobeEventDTO; onClose
           <h3 className="font-semibold text-white">{event.artistName}</h3>
           <p className="text-sm text-white/55">{formatDate(event.date)} · {event.venue}</p>
         </div>
-        <button onClick={onClose} className="text-white/40 hover:text-white"><X className="h-4 w-4" /></button>
+        <button onClick={onClose} aria-label="Details sluiten" className="text-white/40 hover:text-white"><X className="h-4 w-4" /></button>
       </div>
       <p className="mt-2 flex items-center gap-1 text-sm text-white/55">
         <MapPin className="h-3.5 w-3.5" /> {[event.city, event.country].filter(Boolean).join(", ")} · {formatDistance(event.distanceKm)}

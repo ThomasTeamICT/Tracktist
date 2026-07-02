@@ -25,7 +25,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!(await owned(user.id, id))) return notFound();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest("invalid update");
-  const anchor = await prisma.userLocation.update({ where: { id }, data: parsed.data });
+  const data = { ...parsed.data };
+  // Coarse-location promise: store anchors at ~1 km precision (brief §14).
+  if (data.latitude !== undefined) data.latitude = Math.round(data.latitude * 100) / 100;
+  if (data.longitude !== undefined) data.longitude = Math.round(data.longitude * 100) / 100;
+  const anchor = await prisma.userLocation.update({ where: { id }, data });
   return json({ anchor });
 }
 

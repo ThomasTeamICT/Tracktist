@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Globe2, MapPin, Bell, Users } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { Button } from "@/components/ui";
+import { LandingGlobe } from "@/components/landing-globe";
 
 export default async function LandingPage() {
   const user = await getCurrentUser();
@@ -29,34 +30,37 @@ export default async function LandingPage() {
         </Link>
       </header>
 
-      <section className="relative py-16 text-center sm:py-24">
+      <section className="relative grid items-center gap-8 py-12 lg:grid-cols-2 lg:py-16">
         <div
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-0 -z-10 h-72 w-72 -translate-x-1/2 animate-float rounded-full opacity-70 blur-2xl"
+          className="pointer-events-none absolute left-1/4 top-0 -z-10 h-72 w-72 -translate-x-1/2 animate-float rounded-full opacity-70 blur-2xl"
           style={{ backgroundImage: "radial-gradient(circle at 40% 35%, #9d86ff, #5b3df0 45%, transparent 70%)" }}
         />
-        <p className="mb-4 inline-block rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
-          Your personal live-music radar
-        </p>
-        <h1 className="mx-auto max-w-3xl text-4xl font-bold leading-tight sm:text-6xl">
-          Track your favourite artists.{" "}
-          <span className="bg-gradient-to-r from-accent to-glow bg-clip-text text-transparent">
-            See the world. Catch the show.
-          </span>
-        </h1>
-        <p className="mx-auto mt-6 max-w-xl text-white/60">
-          Voeg je artiesten toe en hoef daarna niets meer op te zoeken. Tracktist
-          detecteert nieuwe concertdata, ontdubbelt ze, berekent de afstand tot jou
-          en stuurt alleen relevante meldingen — landsgrenzen overschrijdend.
-        </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Link href="/login">
-            <Button size="lg">Begin gratis</Button>
-          </Link>
-          <Link href="/globe">
-            <Button size="lg" variant="outline">Bekijk de globe</Button>
-          </Link>
+        <div className="animate-fade-up text-center lg:text-left">
+          <p className="mb-4 inline-block rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
+            Your personal live-music radar
+          </p>
+          <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight sm:text-6xl lg:mx-0">
+            Track your favourite artists.{" "}
+            <span className="bg-gradient-to-r from-accent to-glow bg-clip-text text-transparent">
+              See the world. Catch the show.
+            </span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-xl text-white/60 lg:mx-0">
+            Voeg je artiesten toe en hoef daarna niets meer op te zoeken. Tracktist
+            detecteert nieuwe concertdata, ontdubbelt ze, berekent de afstand tot jou
+            en stuurt alleen relevante meldingen — landsgrenzen overschrijdend.
+          </p>
+          <div className="mt-8 flex justify-center gap-3 lg:justify-start">
+            <Link href="/login">
+              <Button size="lg">Begin gratis</Button>
+            </Link>
+            <Link href="/login">
+              <Button size="lg" variant="outline">Bekijk je eigen globe</Button>
+            </Link>
+          </div>
         </div>
+        <LandingGlobe />
       </section>
 
       <section className="grid gap-4 pb-24 sm:grid-cols-2 lg:grid-cols-4">

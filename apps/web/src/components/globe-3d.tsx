@@ -44,8 +44,8 @@ export function Globe3D({
       const height = () => Math.max(420, Math.min(el.clientWidth, 620));
       const g = new Globe(el)
         .backgroundColor("rgba(0,0,0,0)")
-        .globeImageUrl("//unpkg.com/three-globe/example/img/earth-night.jpg")
-        .bumpImageUrl("//unpkg.com/three-globe/example/img/earth-topology.png")
+        .globeImageUrl("/globe/earth-night.jpg")
+        .bumpImageUrl("/globe/earth-topology.png")
         .showAtmosphere(true)
         .atmosphereColor("#8b6dff")
         .atmosphereAltitude(0.2)
@@ -54,7 +54,9 @@ export function Globe3D({
       globeRef.current = g;
 
       const controls = g.controls();
-      controls.autoRotate = true;
+      // Respect reduced-motion: the globe stays interactive but doesn't spin.
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      controls.autoRotate = !reducedMotion;
       controls.autoRotateSpeed = 0.45;
       controls.enableZoom = true;
       controls.minDistance = 180;
@@ -107,7 +109,9 @@ function applyData(
     .pointLabel(
       (d: any) =>
         `<div style="font:600 12px sans-serif;color:#fff">${escapeHtml(d.artistName)}</div>` +
-        `<div style="font:12px sans-serif;color:#bbb">${[d.city, d.country].filter(Boolean).join(", ")} · ${d.date}</div>`,
+        `<div style="font:12px sans-serif;color:#bbb">${escapeHtml(
+          [d.city, d.country].filter(Boolean).join(", "),
+        )} · ${escapeHtml(String(d.date))}</div>`,
     )
     .onPointClick((d: any) => onSelect(d));
 

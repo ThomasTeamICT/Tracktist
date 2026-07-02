@@ -107,6 +107,25 @@ describe("dedupeEvents", () => {
     expect(key1).toBe(key2);
   });
 
+  it("keeps multi-night residencies apart (same venue, consecutive nights)", () => {
+    // TM lists both nights; BIT lists night 1 with a day-shifted date. The
+    // day tolerance would transitively glue everything into one cluster —
+    // the residency split must keep two shows.
+    const night1 = ev({ provider: "ticketmaster", sourceId: "tm-n1", date: "2026-11-12" });
+    const night2 = ev({ provider: "ticketmaster", sourceId: "tm-n2", date: "2026-11-13" });
+    const bitNight1 = ev({ provider: "bandsintown", sourceId: "bit-n1", date: "2026-11-12" });
+    const merged = dedupeEvents([night1, night2, bitNight1]);
+    expect(merged).toHaveLength(2);
+    expect(merged.map((m) => m.date)).toEqual(["2026-11-12", "2026-11-13"]);
+    expect(merged[0]!.sources).toHaveLength(2); // TM night 1 + BIT
+  });
+
+  it("still merges a genuine cross-source day shift (no same-provider pair)", () => {
+    const tm = ev({ provider: "ticketmaster", sourceId: "tm1", date: "2026-11-12" });
+    const bit = ev({ provider: "bandsintown", sourceId: "bit1", date: "2026-11-13" });
+    expect(dedupeEvents([tm, bit])).toHaveLength(1);
+  });
+
   it("lets cancelled status win across conflicting sources", () => {
     const ok = ev({ provider: "ticketmaster", sourceId: "tm1" });
     const cancelled = ev({

@@ -7,6 +7,7 @@ import type {
 } from "../types/event.js";
 import type { Venue } from "../types/venue.js";
 import { toCountryCode } from "../util/country.js";
+import { normalizeName, similarity } from "../util/text.js";
 import { fetchJson, qs, RateLimiter, type FetchImpl } from "./http.js";
 
 /**
@@ -29,6 +30,7 @@ export interface TicketmasterProviderOptions {
 // ── Raw response shapes (only the fields we read) ───────────────────────────
 interface TmResponse {
   _embedded?: { events?: TmEvent[] };
+  page?: { totalPages?: number; number?: number };
 }
 interface TmEvent {
   id: string;
@@ -83,24 +85,38 @@ export class TicketmasterProvider implements EventProvider {
   async fetchEventsForArtist(query: EventQuery): Promise<NormalizedEvent[]> {
     if (!this.apiKey) return [];
     const attractionId = query.externalIds?.ticketmasterAttractionId;
-    const url =
-      `${this.baseUrl}/events.json` +
-      qs({
-        apikey: this.apiKey,
-        attractionId,
-        keyword: attractionId ? undefined : query.artistName,
-        countryCode: query.countryCodes?.join(","),
-        startDateTime: query.from ? `${query.from}T00:00:00Z` : undefined,
-        size: query.size ?? 100,
-        sort: "date,asc",
-      });
+    const byKeyword = !attractionId;
 
-    const data = await fetchJson<TmResponse>(url, {
-      fetchImpl: this.fetchImpl,
-      rateLimiter: this.rateLimiter,
-    });
-    const events = data._embedded?.events ?? [];
-    return events
+    // Follow pagination — big tours span multiple pages. Capped defensively;
+    // the Discovery API itself refuses size×page beyond 1000 items.
+    const MAX_PAGES = 5;
+    const raw: TmEvent[] = [];
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const url =
+        `${this.baseUrl}/events.json` +
+        qs({
+          apikey: this.apiKey,
+          attractionId,
+          keyword: byKeyword ? query.artistName : undefined,
+          countryCode: query.countryCodes?.join(","),
+          startDateTime: query.from ? `${query.from}T00:00:00Z` : undefined,
+          size: query.size ?? 100,
+          page: page > 0 ? page : undefined,
+          sort: "date,asc",
+        });
+      const data = await fetchJson<TmResponse>(url, {
+        fetchImpl: this.fetchImpl,
+        rateLimiter: this.rateLimiter,
+      });
+      raw.push(...(data._embedded?.events ?? []));
+      const totalPages = data.page?.totalPages ?? 1;
+      if (page + 1 >= totalPages) break;
+    }
+
+    return raw
+      // Keyword search is fuzzy (matches event names, similar artists…);
+      // only keep events verifiably featuring the queried artist.
+      .filter((e) => !byKeyword || eventFeaturesArtist(e, query.artistName))
       .map((e) => this.normalize(e, query))
       .filter((e): e is NormalizedEvent => e !== null);
   }
@@ -115,6 +131,10 @@ export class TicketmasterProvider implements EventProvider {
     const attractions = e._embedded?.attractions ?? [];
     const headliner = attractions[0]?.name ?? query.artistName;
     const supportActs = attractions.slice(1).map((a) => a.name ?? "").filter(Boolean);
+    // Only stamp the queried artist's MBID when they actually ARE the
+    // headliner — on a multi-act bill where they support, the event belongs
+    // to the headliner and a wrong MBID would poison dedupe.
+    const headlinerIsQueryArtist = sameName(headliner, query.artistName);
 
     const { status, ticketStatus } = mapStatus(e.dates?.status?.code);
     const isFestival = looksLikeFestival(e);
@@ -127,7 +147,7 @@ export class TicketmasterProvider implements EventProvider {
         ticketUrl: e.url,
         lastCheckedAt: this.now(),
       },
-      artistMbid: query.mbid ?? query.externalIds?.mbid,
+      artistMbid: headlinerIsQueryArtist ? query.mbid ?? query.externalIds?.mbid : undefined,
       artistName: headliner,
       supportActs,
       title: e.name,
@@ -172,6 +192,25 @@ function normalizePrice(
   return { min: r.min, max: r.max, currency: r.currency };
 }
 
+/** True when two artist names refer to the same act (normalized/fuzzy). */
+function sameName(a: string, b: string): boolean {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  return na === nb || similarity(na, nb) >= 0.85;
+}
+
+/** Does this raw TM event verifiably feature the queried artist? */
+function eventFeaturesArtist(e: TmEvent, artistName: string): boolean {
+  const attractions = e._embedded?.attractions ?? [];
+  if (attractions.length > 0) {
+    return attractions.some((a) => a.name && sameName(a.name, artistName));
+  }
+  // No attraction list — fall back to the event name containing the artist.
+  const eventName = normalizeName(e.name ?? "");
+  const artist = normalizeName(artistName);
+  return artist.length > 0 && eventName.includes(artist);
+}
+
 function mapStatus(code: string | undefined): {
   status: EventStatus;
   ticketStatus: TicketStatus;
@@ -180,8 +219,12 @@ function mapStatus(code: string | undefined): {
     case "onsale":
       return { status: "tickets_available", ticketStatus: "available" };
     case "offsale":
-      return { status: "sold_out", ticketStatus: "sold_out" };
+      // "offsale" only means "not currently on sale" — before the sale opens
+      // OR after it closed. Calling that "sold out" would be a lie; keep it
+      // announced/unknown and let other sources refine it.
+      return { status: "announced", ticketStatus: "unknown" };
     case "cancelled":
+    case "canceled": // TM uses the US spelling in parts of the Discovery API
       return { status: "cancelled", ticketStatus: "cancelled" };
     case "postponed":
     case "rescheduled":

@@ -394,6 +394,7 @@ model Notification {
   anchor UserLocation? @relation(fields: [anchorId], references: [id], onDelete: SetNull)
 
   @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
 
 model NotificationPreference {

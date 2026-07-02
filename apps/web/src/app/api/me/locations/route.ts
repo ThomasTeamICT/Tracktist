@@ -17,6 +17,15 @@ const schema = z.object({
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Coarse-location promise (brief §14 + the copy on the login page): anchors
+ * are stored at ~1 km precision (2 decimals). Distance maths at radius scale
+ * (25–5000 km) is unaffected.
+ */
+function coarsen(coord: number): number {
+  return Math.round(coord * 100) / 100;
+}
+
 export async function GET() {
   const user = await apiUser();
   if (!user) return unauthorized();
@@ -34,8 +43,8 @@ export async function POST(req: Request) {
     data: {
       userId: user.id,
       label: d.label,
-      latitude: d.latitude,
-      longitude: d.longitude,
+      latitude: coarsen(d.latitude),
+      longitude: coarsen(d.longitude),
       city: d.city ?? null,
       country: d.country ?? null,
       countryCode: d.countryCode ?? null,
