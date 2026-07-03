@@ -20,6 +20,8 @@ import {
   Link2,
   AlertTriangle,
   Save,
+  RefreshCw,
+  CalendarRange,
 } from "lucide-react";
 import { Badge, Button, Card, Input, SectionTitle } from "@/components/ui";
 import { subscribeToWebPush } from "@/lib/push-client";
@@ -36,6 +38,9 @@ interface Anchor {
   countryCode: string | null;
   radiusKm: number;
   active: boolean;
+  /** Travel anchors: only count within this window (ISO dates). */
+  startDate: string | null;
+  endDate: string | null;
 }
 
 interface Preferences {
@@ -441,6 +446,13 @@ function LocationsSection({
                         <MapPin className="h-3.5 w-3.5" />
                         {place || "Locatie onbekend"} · straal {a.radiusKm} km
                       </p>
+                      {a.startDate || a.endDate ? (
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-accent-soft/80">
+                          <CalendarRange className="h-3.5 w-3.5" />
+                          Reisanker: {a.startDate ? a.startDate.slice(0, 10) : "…"} →{" "}
+                          {a.endDate ? a.endDate.slice(0, 10) : "…"}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Toggle
@@ -502,6 +514,9 @@ function AddAnchor({
   const [searchNote, setSearchNote] = useState<string | null>(null);
   const [selected, setSelected] = useState<GeoPlace | null>(null);
   const [radius, setRadius] = useState(150);
+  // Optional validity window → travel anchor ("op reis van … tot …").
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -545,6 +560,8 @@ function AddAnchor({
     setPlaces([]);
     setSelected(null);
     setRadius(150);
+    setStartDate("");
+    setEndDate("");
   }
 
   function useMyLocation() {
@@ -595,6 +612,8 @@ function AddAnchor({
           countryCode: selected.countryCode,
           radiusKm: radius,
           active: true,
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
         }),
       });
       if (!res.ok) throw new Error("opslaan mislukt");
@@ -730,6 +749,40 @@ function AddAnchor({
               {preset} km
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Travel anchor: an optional validity window (brief v2 — reisankers). */}
+      <div className="space-y-2">
+        <p className="flex items-center gap-1.5 text-sm text-white/70">
+          <CalendarRange className="h-4 w-4 text-accent-soft" />
+          Tijdelijk anker (optioneel)
+        </p>
+        <p className="text-xs text-white/45">
+          Op reis of tijdelijk ergens anders? Dit anker telt dan alleen mee voor shows binnen
+          deze periode.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs text-white/50">
+            Geldig vanaf
+            <Input
+              type="date"
+              className="mt-1 w-full"
+              value={startDate}
+              max={endDate || undefined}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </label>
+          <label className="block text-xs text-white/50">
+            Geldig tot en met
+            <Input
+              type="date"
+              className="mt-1 w-full"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </label>
         </div>
       </div>
 
@@ -1192,10 +1245,123 @@ function AccountsSection({ user }: { user: MeUser | null }) {
         ))}
       </Card>
 
+      <CalendarFeedCard />
+
       <p className="text-xs text-white/40">
         Het beheren van externe providers (zoals Spotify of Last.fm) wordt in een latere stap
         toegevoegd.
       </p>
     </section>
+  );
+}
+
+/* ------------------------- calendar feed (iCal) --------------------------- */
+
+function CalendarFeedCard() {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/me/calendar-feed", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { url?: string | null } | null) => {
+        if (alive) setUrl(d?.url ?? null);
+      })
+      .catch(() => undefined)
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function createOrRotate() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/me/calendar-feed", { method: "POST", credentials: "same-origin" });
+      if (res.ok) {
+        const d: { url?: string } = await res.json();
+        setUrl(d.url ?? null);
+        setCopied(false);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revoke() {
+    if (!window.confirm("Agenda-feed intrekken? Gekoppelde kalenders stoppen met verversen.")) return;
+    setBusy(true);
+    try {
+      await fetch("/api/me/calendar-feed", { method: "DELETE", credentials: "same-origin" });
+      setUrl(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy() {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      /* clipboard unavailable — the URL stays visible for manual copy */
+    }
+  }
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-white">Agenda-feed (iCal)</h3>
+          <p className="mt-0.5 text-sm text-white/55">
+            Abonneer je kalender (Google, Apple, Outlook) op al je komende shows. De feed
+            ververst zichzelf — nooit meer handmatig toevoegen.
+          </p>
+        </div>
+        {url ? (
+          <Badge tone="success">
+            <Check className="h-3 w-3" /> Actief
+          </Badge>
+        ) : null}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-white/45">Laden…</p>
+      ) : url ? (
+        <>
+          <div className="flex items-center gap-2">
+            <Input readOnly value={url} className="flex-1 text-xs" aria-label="Agenda-feed URL" />
+            <Button size="sm" variant="subtle" onClick={() => void copy()}>
+              {copied ? <Check className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+              {copied ? "Gekopieerd" : "Kopieer"}
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => void createOrRotate()} disabled={busy}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Vernieuw link
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => void revoke()} disabled={busy}>
+              <Trash2 className="h-4 w-4" /> Intrekken
+            </Button>
+            <span className="text-xs text-white/40">
+              Vernieuwen maakt de oude link ongeldig — handig als je hem per ongeluk deelde.
+            </span>
+          </div>
+        </>
+      ) : (
+        <div>
+          <Button size="sm" onClick={() => void createOrRotate()} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+            Maak agenda-feed
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }

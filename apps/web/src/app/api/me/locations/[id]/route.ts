@@ -11,6 +11,9 @@ const schema = z.object({
   countryCode: z.string().length(2).nullable().optional(),
   radiusKm: z.number().int().min(1).max(5000).optional(),
   active: z.boolean().optional(),
+  // Travel-anchor window; null clears it (back to a permanent anchor).
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 });
 
 async function owned(userId: string, id: string) {
@@ -25,10 +28,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!(await owned(user.id, id))) return notFound();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest("invalid update");
-  const data = { ...parsed.data };
+  const { startDate, endDate, ...rest } = parsed.data;
+  const data: Record<string, unknown> = { ...rest };
   // Coarse-location promise: store anchors at ~1 km precision (brief §14).
-  if (data.latitude !== undefined) data.latitude = Math.round(data.latitude * 100) / 100;
-  if (data.longitude !== undefined) data.longitude = Math.round(data.longitude * 100) / 100;
+  if (typeof data.latitude === "number") data.latitude = Math.round(data.latitude * 100) / 100;
+  if (typeof data.longitude === "number") data.longitude = Math.round(data.longitude * 100) / 100;
+  if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
+  if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
   const anchor = await prisma.userLocation.update({ where: { id }, data });
   return json({ anchor });
 }
