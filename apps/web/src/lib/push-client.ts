@@ -21,12 +21,22 @@ export async function subscribeToWebPush(): Promise<PushEnrollResult> {
     const { publicKey } = (await keyRes.json().catch(() => ({}))) as { publicKey?: string };
     if (!publicKey) return "unavailable";
 
-    await navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    // Use the registration we get back — `serviceWorker.ready` never
+    // resolves when registration failed, which would hang this promise (and
+    // the settings toggle) forever.
+    const reg = await navigator.serviceWorker.register("/sw.js").catch(() => null);
+    if (!reg) return "unavailable";
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return "denied";
 
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.subscribe({
+    // Wait for the worker to activate, but never indefinitely.
+    const ready = await Promise.race<ServiceWorkerRegistration | null>([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
+    ]);
+    if (!ready) return "unavailable";
+
+    const sub = await ready.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });

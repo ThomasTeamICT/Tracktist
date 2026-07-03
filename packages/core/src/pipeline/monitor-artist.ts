@@ -31,6 +31,8 @@ export interface ProviderOutcome {
   provider: ProviderName;
   ok: boolean;
   count: number;
+  /** False when the provider was skipped because it isn't configured. */
+  enabled: boolean;
   error?: string;
 }
 
@@ -62,11 +64,21 @@ export async function monitorArtist(input: MonitorArtistInput): Promise<MonitorA
   const outcomes = await Promise.all(
     input.providers.map(async (provider) => {
       if (!provider.isEnabled()) {
-        return { provider, events: [] as NormalizedEvent[], outcome: { provider: provider.name, ok: true, count: 0 } };
+        // Distinctly marked: a disabled provider says NOTHING about the world
+        // — callers must not treat this as a successful empty answer.
+        return {
+          provider,
+          events: [] as NormalizedEvent[],
+          outcome: { provider: provider.name, ok: true, count: 0, enabled: false },
+        };
       }
       try {
         const events = await provider.fetchEventsForArtist(query);
-        return { provider, events, outcome: { provider: provider.name, ok: true, count: events.length } };
+        return {
+          provider,
+          events,
+          outcome: { provider: provider.name, ok: true, count: events.length, enabled: true },
+        };
       } catch (err) {
         // Provider failure must not sink the whole sync (brief §5.2.7 fallback).
         return {
@@ -76,6 +88,7 @@ export async function monitorArtist(input: MonitorArtistInput): Promise<MonitorA
             provider: provider.name,
             ok: false,
             count: 0,
+            enabled: true,
             error: err instanceof Error ? err.message : String(err),
           },
         };

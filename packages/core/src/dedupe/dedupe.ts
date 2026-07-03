@@ -301,9 +301,11 @@ export function dedupeEvents(
 /**
  * Guard against multi-night residencies collapsing into one event: the day
  * tolerance (for cross-source timezone shifts) can transitively union two
- * consecutive nights at the same venue. But when a SINGLE provider lists
- * multiple distinct dates in one cluster, those are separate shows by
- * definition — re-split the cluster by date so no night is dropped.
+ * consecutive nights at the same venue. When a SINGLE provider lists multiple
+ * distinct dates in one cluster, those are separate shows by definition —
+ * re-split by those "anchor" nights. Events from single-date providers attach
+ * to their NEAREST anchor night (they may be day-shifted), so a shifted
+ * cross-source record never fabricates a phantom extra show.
  */
 function splitResidency(cluster: NormalizedEvent[]): NormalizedEvent[][] {
   const dates = new Set(cluster.map((e) => e.date));
@@ -315,16 +317,24 @@ function splitResidency(cluster: NormalizedEvent[]): NormalizedEvent[][] {
     set.add(e.date);
     datesPerProvider.set(e.source.provider, set);
   }
-  const isResidency = [...datesPerProvider.values()].some((s) => s.size > 1);
-  if (!isResidency) return [cluster]; // genuine cross-source day-shift — keep merged
+  const multiDateProviders = [...datesPerProvider.entries()].filter(([, s]) => s.size > 1);
+  if (multiDateProviders.length === 0) return [cluster]; // genuine cross-source day-shift
 
-  const byDate = new Map<string, NormalizedEvent[]>();
+  // Anchor nights = the dates listed by residency (multi-date) providers.
+  const anchorDates = [...new Set(multiDateProviders.flatMap(([, s]) => [...s]))].sort();
+  const groups = new Map<string, NormalizedEvent[]>(anchorDates.map((d) => [d, []]));
+  const toTime = (d: string) => Date.parse(`${d}T00:00:00Z`);
   for (const e of cluster) {
-    const list = byDate.get(e.date) ?? [];
-    list.push(e);
-    byDate.set(e.date, list);
+    const target = groups.has(e.date)
+      ? e.date
+      : anchorDates.reduce((best, d) =>
+          Math.abs(toTime(d) - toTime(e.date)) < Math.abs(toTime(best) - toTime(e.date))
+            ? d
+            : best,
+        );
+    groups.get(target)!.push(e);
   }
-  return [...byDate.values()];
+  return [...groups.values()].filter((g) => g.length > 0);
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────

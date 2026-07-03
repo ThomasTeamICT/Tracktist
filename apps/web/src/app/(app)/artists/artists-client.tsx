@@ -323,8 +323,12 @@ function ArtistCard({
         credentials: "same-origin",
       });
       if (!res.ok) throw new Error();
-      const data: { eventCount?: number } = await res.json();
-      setNote(`Gesynchroniseerd — ${data.eventCount ?? 0} optreden(s).`);
+      const data: { eventCount?: number; skipped?: boolean } = await res.json();
+      setNote(
+        data.skipped
+          ? "Net al gesynchroniseerd — probeer het over een paar minuten opnieuw."
+          : `Gesynchroniseerd — ${data.eventCount ?? 0} optreden(s).`,
+      );
       await onChanged();
     } catch {
       setNote("Synchroniseren mislukt.");

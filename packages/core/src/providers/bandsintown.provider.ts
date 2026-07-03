@@ -105,10 +105,12 @@ export class BandsintownProvider implements EventProvider {
     const headliner = lineup[0] ?? query.artistName;
     const supportActs = lineup.slice(1);
     // Same rule as Ticketmaster: the MBID belongs to the queried artist, so
-    // only stamp it when they are actually the headliner of this bill.
+    // only stamp it when they are actually the headliner of this bill. These
+    // events come from the artist's OWN endpoint, so a bill without other
+    // acts is theirs even when the name is stylized ("MØ" vs "MO").
     const na = normalizeName(headliner);
     const nb = normalizeName(query.artistName);
-    const headlinerIsQueryArtist = na === nb || similarity(na, nb) >= 0.85;
+    const headlinerIsQueryArtist = na === nb || similarity(na, nb) >= 0.85 || lineup.length <= 1;
 
     const { status, ticketStatus, ticketUrl } = mapOffers(e.offers);
     const isFestival = Boolean(e.festival_start_date) ||

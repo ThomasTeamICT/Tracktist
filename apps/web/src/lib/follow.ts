@@ -19,9 +19,10 @@ export async function getOrCreateArtistFromCore(artist: CoreArtist) {
   if (artist.mbid) {
     // Backfill: an earlier name-only follow may have created this artist
     // without an MBID. Claim that row instead of splitting the identity
-    // over two rows.
+    // over two rows. Case-insensitive: "the national" and "The National"
+    // are the same name-only identity.
     const nameOnly = await prisma.artist.findFirst({
-      where: { mbid: null, name: artist.name },
+      where: { mbid: null, name: { equals: artist.name, mode: "insensitive" } },
     });
     if (nameOnly) {
       dbArtist = await prisma.artist
@@ -62,13 +63,14 @@ export async function getOrCreateArtistFromCore(artist: CoreArtist) {
       });
     }
   } else {
+    const byName = { name: { equals: artist.name, mode: "insensitive" as const } };
     dbArtist =
-      (await prisma.artist.findFirst({ where: { name: artist.name } })) ??
+      (await prisma.artist.findFirst({ where: byName })) ??
       (await prisma.artist
         .create({ data: { name: artist.name, genres: artist.genres ?? [] } })
         .catch(async () => {
           // Race with a concurrent follow of the same name.
-          const raced = await prisma.artist.findFirst({ where: { name: artist.name } });
+          const raced = await prisma.artist.findFirst({ where: byName });
           if (!raced) throw new Error(`Artist create failed for ${artist.name}`);
           return raced;
         }));

@@ -83,6 +83,11 @@ export async function fetchJson<T = unknown>(
 
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    // Honour a caller abort that landed before this attempt (including
+    // during a retry backoff sleep) — never start a new request after it.
+    if (signal?.aborted) {
+      throw lastError instanceof Error ? lastError : new Error("Aborted");
+    }
     await rateLimiter.acquire();
 
     const controller = new AbortController();

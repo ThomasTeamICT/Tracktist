@@ -39,6 +39,11 @@ export interface EvaluateForUserInput {
    * powers the `only_new_tours` follow mode.
    */
   recentArtistNotifications?: Set<string>;
+  /**
+   * Previous ticket status per event id (from the stored change hash), so a
+   * re-notify can be typed by what actually CHANGED rather than current state.
+   */
+  previousTicketStatusByEvent?: Map<string, string>;
   /** Injected clock for deterministic date scoring. */
   now?: Date;
 }
@@ -56,6 +61,9 @@ function followKey(event: CanonicalEvent): string[] {
   const keys: string[] = [];
   if (event.artistMbid) keys.push(event.artistMbid);
   keys.push(event.artistName.toLowerCase());
+  // Support acts too: a user who follows the SUPPORT act must get their own
+  // follow rules applied to this event, not silent defaults.
+  for (const support of event.supportActs) keys.push(support.toLowerCase());
   return keys;
 }
 
@@ -63,7 +71,7 @@ const DEFAULT_RULES: ArtistFollowRules = { priority: "normal", mode: "within_dis
 
 export function evaluateEventsForUser(input: EvaluateForUserInput): EvaluatedEvent[] {
   const now = input.now ?? new Date();
-  return input.events.map((event) => {
+  const results = input.events.map((event) => {
     const rules =
       followKey(event)
         .map((k) => input.followsByArtist.get(k))
@@ -102,10 +110,35 @@ export function evaluateEventsForUser(input: EvaluateForUserInput): EvaluatedEve
         recentArtistNotification: followKey(event).some((k) =>
           input.recentArtistNotifications?.has(k),
         ),
+        previousTicketStatus: input.previousTicketStatusByEvent?.get(event.id),
       },
       input.prefs,
     );
 
-    return { event, nearest, withinRadius, relevance, notification };
+    return { event, nearest, withinRadius, relevance, notification, rules };
   });
+
+  // `only_new_tours` must also hold WITHIN one batch: a 12-date tour ingested
+  // by a single sync is one announcement wave, not twelve notifications.
+  const touredArtists = new Set<string>();
+  for (const r of results) {
+    if (r.rules.mode !== "only_new_tours") continue;
+    const n = r.notification;
+    if (!n.notify) continue;
+    // Lifecycle/ticket re-notifies about known shows still pass.
+    if (n.type !== "new_show_nearby" && n.type !== "new_show_must_see") continue;
+    const keys = followKey(r.event);
+    if (keys.some((k) => touredArtists.has(k))) {
+      r.notification = {
+        notify: false,
+        reason: "Tour already announced in this batch",
+        dedupeKey: n.dedupeKey,
+        digest: false,
+      };
+    } else {
+      for (const k of keys) touredArtists.add(k);
+    }
+  }
+
+  return results.map(({ rules: _rules, ...rest }) => rest);
 }

@@ -55,6 +55,8 @@ export interface NotificationContext {
   hasTicketLink: boolean;
   /** The user has already been notified about this event before. */
   previouslyNotified?: boolean;
+  /** Ticket status at the time of the previous notification, if known. */
+  previousTicketStatus?: string;
   /**
    * The user was recently notified about another show of this artist —
    * used by the `only_new_tours` follow mode (one ping per announcement
@@ -212,9 +214,15 @@ export function evaluateNotification(
     return deny("Outside notification radius");
   }
 
-  // A re-notify for a show the user knows, triggered by tickets going on
-  // sale, is a ticket alert — not another "new show".
-  const isTicketDrop = ctx.previouslyNotified === true && ctx.event.ticketStatus === "available";
+  // A re-notify for a show the user knows, TRIGGERED by tickets going on
+  // sale, is a ticket alert — not another "new show". Only when the ticket
+  // status actually changed to available; a venue/date change on a show whose
+  // tickets were already on sale is not a ticket drop.
+  const isTicketDrop =
+    ctx.previouslyNotified === true &&
+    ctx.event.ticketStatus === "available" &&
+    ctx.previousTicketStatus !== undefined &&
+    ctx.previousTicketStatus !== "available";
   const type: NotificationType = isTicketDrop
     ? "tickets_available"
     : isMustSee

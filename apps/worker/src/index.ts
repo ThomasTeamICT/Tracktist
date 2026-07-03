@@ -48,25 +48,9 @@ async function withBullMq(): Promise<boolean> {
       console.error(`[worker] job ${jobId} failed: ${failedReason}`),
     );
 
-    const worker = new Worker(
-      "tracktist-sync",
-      async (job) => {
-        console.log(`[worker] running job ${job.name}`);
-        return runTick({
-          limit: config.syncLimit,
-          staleHours: config.staleHours,
-          digest: job.name === "weekly-digest",
-        });
-      },
-      { connection, concurrency: 1 },
-    );
-    cleanup.push(worker);
-    worker.on("completed", (job, result) =>
-      console.log(`[worker] ${job.name} done:`, result),
-    );
-
-    // Reconcile repeatables: drop stale schedules (a changed cron env var
-    // would otherwise leave BOTH the old and the new schedule firing).
+    // Reconcile repeatables BEFORE starting the Worker: an overdue iteration
+    // of a stale schedule grabbed mid-reconcile would re-register the old
+    // cron alongside the new one.
     const existing = await queue.getRepeatableJobs();
     for (const job of existing) {
       const wanted = REPEATABLES.find((r) => r.name === job.name);
@@ -85,6 +69,28 @@ async function withBullMq(): Promise<boolean> {
         backoff: { type: "exponential", delay: 30_000 },
       });
     }
+
+    const worker = new Worker(
+      "tracktist-sync",
+      async (job) => {
+        console.log(`[worker] running job ${job.name}`);
+        const result = await runTick({
+          limit: config.syncLimit,
+          staleHours: config.staleHours,
+          digest: job.name === "weekly-digest",
+        });
+        // Throw on HTTP-level failure so BullMQ's attempts/backoff actually
+        // fire — a returned {ok:false} would count as success and silently
+        // skip e.g. the weekly digest for the whole week.
+        if (!result.ok) throw new Error(result.error ?? "tick failed");
+        return result;
+      },
+      { connection, concurrency: 1 },
+    );
+    cleanup.push(worker);
+    worker.on("completed", (job, result) =>
+      console.log(`[worker] ${job.name} done:`, result),
+    );
 
     console.log(
       `[worker] BullMQ ready. daily="${config.dailyCron}" fast="${config.fastCron}" digest="${config.digestCron}"`,

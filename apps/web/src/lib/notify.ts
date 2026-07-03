@@ -16,6 +16,7 @@ import {
   getUserAnchors,
 } from "./queries.js";
 import { getWebPushDevices, sendWebPushToDevices } from "./push.js";
+import { features } from "./env.js";
 import { formatDate, formatDistance } from "./utils.js";
 
 const TYPE_TO_DB: Record<CoreNotificationType, NotificationType> = {
@@ -77,9 +78,15 @@ export async function notifyUser(
   // and which artists pinged them recently (powers `only_new_tours`).
   const previouslyNotifiedEventIds = new Set<string>();
   const recentArtistNotifications = new Set<string>();
+  // Change-hash layout: date|venue|status|ticketStatus|in-out (core rules.ts).
+  const previousTicketStatusByEvent = new Map<string, string>();
   const waveCutoff = Date.now() - TOUR_WAVE_DAYS * 86_400_000;
   for (const n of prior) {
-    if (n.event?.dedupeKey) previouslyNotifiedEventIds.add(n.event.dedupeKey);
+    if (n.event?.dedupeKey) {
+      previouslyNotifiedEventIds.add(n.event.dedupeKey);
+      const prevTicket = n.changeHash?.split("|")[3];
+      if (prevTicket) previousTicketStatusByEvent.set(n.event.dedupeKey, prevTicket);
+    }
     if (n.artist && n.createdAt.getTime() >= waveCutoff) {
       if (n.artist.mbid) recentArtistNotifications.add(n.artist.mbid);
       recentArtistNotifications.add(n.artist.name.toLowerCase());
@@ -101,6 +108,7 @@ export async function notifyUser(
     friendCountByEvent,
     previouslyNotifiedEventIds,
     recentArtistNotifications,
+    previousTicketStatusByEvent,
   });
 
   let created = 0;
@@ -159,6 +167,14 @@ export async function notifyUser(
   return { created, updated, dispatched };
 }
 
+/** App-default timezone for quiet hours; per-user timezones are v2. */
+const APP_TIMEZONE = "Europe/Brussels";
+
+/** "Now" as a wall-clock Date in the app's default timezone. */
+function nowInAppTimezone(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: APP_TIMEZONE }));
+}
+
 /**
  * Deliver undelivered direct notifications via web push. Quiet hours (§6.5)
  * defer delivery — rows stay pending and the next tick retries, so an alert
@@ -168,8 +184,12 @@ async function dispatchPendingPush(
   userId: string,
   quietHours?: { start: string; end: string },
 ): Promise<number> {
-  // Server-local time; per-user timezones are a v2 refinement.
-  if (isInQuietHours(quietHours, new Date())) return 0;
+  // Web push not configured (no VAPID keys): leave rows pending instead of
+  // consuming them — they deliver once keys are set.
+  if (!features.webPush) return 0;
+  // Quiet hours are interpreted in the app's home timezone (target audience
+  // is BE/NL) rather than wherever the server happens to run.
+  if (isInQuietHours(quietHours, nowInAppTimezone())) return 0;
 
   const pending = await prisma.notification.findMany({
     where: { userId, webPush: true, sentAt: null },
@@ -226,13 +246,17 @@ export async function sendWeeklyDigest(
   if (already) return { sent: false, bundled: 0 };
 
   // Digest members: rows created in digest mode (no direct channels) that
-  // were never delivered anywhere else.
+  // were never delivered anywhere else, from the PAST WEEK only, and not
+  // already read in-app — the digest is a weekly summary, not a lifetime
+  // backlog of things the user has already seen.
   const pending = await prisma.notification.findMany({
     where: {
       userId,
       sentAt: null,
+      readAt: null,
       webPush: false,
       email: false,
+      createdAt: { gte: new Date(Date.now() - 8 * 86_400_000) },
       type: { in: ["NEW_SHOW_NEARBY", "NEW_SHOW_MUST_SEE", "TICKETS_AVAILABLE"] },
     },
     orderBy: { createdAt: "asc" },

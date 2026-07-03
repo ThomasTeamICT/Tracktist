@@ -410,8 +410,10 @@ model NotificationPreference {
   digest            Boolean  @default(false)
   quietHoursStart   String?
   quietHoursEnd     String?
-  webPush           Boolean  @default(true)
-  email             Boolean  @default(true)
+  // External channels are opt-in (GDPR + matches the settings UI defaults);
+  // only the in-app inbox is on by default.
+  webPush           Boolean  @default(false)
+  email             Boolean  @default(false)
   inApp             Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

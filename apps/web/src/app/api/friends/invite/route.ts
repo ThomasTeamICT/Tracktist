@@ -14,8 +14,9 @@ export async function POST(req: Request) {
   const target = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (target?.id === user.id) return badRequest("cannot invite yourself");
 
-  // Anti-enumeration: an unknown email gets the same success response as a
-  // real invite, so this endpoint can't be used to probe who has an account.
+  // Anti-enumeration: EVERY branch below returns the identical 200 {ok:true}
+  // — no friendship object, no status difference — so this endpoint can't be
+  // used to probe which emails have an account.
   if (!target) return json({ ok: true });
 
   // Reuse any existing friendship in either direction.
@@ -27,10 +28,10 @@ export async function POST(req: Request) {
       ],
     },
   });
-  if (existing) return json({ ok: true, friendship: existing });
-
-  const friendship = await prisma.friendship.create({
-    data: { requesterId: user.id, addresseeId: target.id, status: "PENDING" },
-  });
-  return json({ ok: true, friendship }, { status: 201 });
+  if (!existing) {
+    await prisma.friendship.create({
+      data: { requesterId: user.id, addresseeId: target.id, status: "PENDING" },
+    });
+  }
+  return json({ ok: true });
 }

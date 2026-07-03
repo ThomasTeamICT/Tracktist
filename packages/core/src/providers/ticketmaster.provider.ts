@@ -133,8 +133,12 @@ export class TicketmasterProvider implements EventProvider {
     const supportActs = attractions.slice(1).map((a) => a.name ?? "").filter(Boolean);
     // Only stamp the queried artist's MBID when they actually ARE the
     // headliner — on a multi-act bill where they support, the event belongs
-    // to the headliner and a wrong MBID would poison dedupe.
-    const headlinerIsQueryArtist = sameName(headliner, query.artistName);
+    // to the headliner and a wrong MBID would poison dedupe. A single-act
+    // event fetched via the artist's own attraction id is theirs regardless
+    // of name spelling (stylized names like "MØ" defeat fuzzy matching).
+    const byAttractionId = Boolean(query.externalIds?.ticketmasterAttractionId);
+    const headlinerIsQueryArtist =
+      sameName(headliner, query.artistName) || (byAttractionId && attractions.length <= 1);
 
     const { status, ticketStatus } = mapStatus(e.dates?.status?.code);
     const isFestival = looksLikeFestival(e);

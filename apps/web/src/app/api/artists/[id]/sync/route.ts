@@ -18,12 +18,20 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const follow = await prisma.userArtistFollow.findUnique({
     where: { userId_artistId: { userId: user.id, artistId: id } },
-    include: { artist: { select: { lastSyncedAt: true } } },
   });
   if (!follow) return forbidden("volg deze artiest om een sync te starten");
 
-  const last = follow.artist.lastSyncedAt;
-  if (last && Date.now() - last.getTime() < DEBOUNCE_MINUTES * 60_000) {
+  // Atomic claim (no check-then-act race): only the request that actually
+  // moves lastSyncedAt past the debounce cutoff gets to run the sync.
+  const cutoff = new Date(Date.now() - DEBOUNCE_MINUTES * 60_000);
+  const claim = await prisma.artist.updateMany({
+    where: {
+      id,
+      OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: cutoff } }],
+    },
+    data: { lastSyncedAt: new Date() },
+  });
+  if (claim.count === 0) {
     return json({ ok: true, skipped: true, reason: "recent gesynchroniseerd" });
   }
 

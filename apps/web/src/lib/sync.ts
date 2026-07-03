@@ -41,26 +41,34 @@ export async function syncArtist(
     from,
   });
 
+  // `claimed` prevents two canonical events in this batch from re-attaching
+  // to the SAME DB row (a split residency would otherwise collapse back onto
+  // one row and flip-flop between nights every sync).
+  const claimed = new Set<string>();
   let persisted = 0;
+  let persistFailures = 0;
   for (const event of result.events) {
     try {
-      await persistCanonicalEvent({ id: artist.id, name: artist.name }, event);
+      await persistCanonicalEvent({ id: artist.id, name: artist.name }, event, claimed);
       persisted++;
     } catch (err) {
       // One poisoned event must not abort the artist's whole sync (and leave
       // lastSyncedAt unset, wedging this artist at the head of every tick).
+      persistFailures++;
       console.error(`persist failed for event ${event.id}`, err);
     }
   }
 
   // Ghost-show decay: future events of this artist that a live sync no longer
   // returns slowly lose confidence, so a silently removed listing fades to
-  // "nog niet bevestigd" instead of haunting agendas forever. Only when at
-  // least one live provider actually answered — a fully failed (or key-less)
-  // sync says nothing about the events.
-  const anyLiveProvider = providers.some((p) => p.isEnabled());
-  const anyProviderOk = result.perProvider.some((p) => p.ok);
-  if (anyLiveProvider && anyProviderOk) {
+  // "nog niet bevestigd" instead of haunting agendas forever. Strictly gated:
+  // EVERY configured provider must have answered OK (a disabled provider says
+  // nothing about the world, and a failing one would license decaying the
+  // very events it exclusively sources), and no persist may have failed
+  // (a failed persist leaves the old row keyed differently → false ghost).
+  const liveOutcomes = result.perProvider.filter((p) => p.enabled);
+  const allLiveProvidersOk = liveOutcomes.length > 0 && liveOutcomes.every((p) => p.ok);
+  if (allLiveProvidersOk && persistFailures === 0) {
     const seenKeys = result.events.map((e) => e.id);
     await prisma.event.updateMany({
       where: {
@@ -115,12 +123,14 @@ export async function persistArtistEvents(
     select: { id: true, name: true },
   });
   if (!artist) throw new Error(`Artist ${headlinerArtistId} not found`);
-  for (const ev of events) await persistCanonicalEvent(artist, ev);
+  const claimed = new Set<string>();
+  for (const ev of events) await persistCanonicalEvent(artist, ev, claimed);
 }
 
 async function persistCanonicalEvent(
   syncedArtist: { id: string; name: string },
   ev: CanonicalEvent,
+  claimed: Set<string> = new Set(),
 ): Promise<void> {
   const venue = await getOrCreateVenue(ev.venue);
 
@@ -148,10 +158,24 @@ async function persistCanonicalEvent(
   // first via the strongest anchor (a shared provider sourceId), then via
   // same-artist/same-day venue similarity. Otherwise every drift or
   // reschedule would duplicate the show and orphan the old row.
-  let dbEvent = await prisma.event.findUnique({ where: { dedupeKey: ev.id } });
-  if (dbEvent) {
-    dbEvent = await prisma.event.update({ where: { id: dbEvent.id }, data: common });
+  //
+  // Two guards keep re-attachment honest:
+  // - `claimed`: a row already matched by another canonical event in THIS
+  //   batch is off-limits (split residency nights must not collapse back).
+  // - key downgrades: an MBID-keyed row never adopts a name-keyed id — a
+  //   co-billed follower's sync sees the same show without the headliner's
+  //   MBID and would otherwise flip the key back and forth every sync,
+  //   re-triggering notifications for all followers.
+  const keyHasMbid = (key: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(key);
+  const mayRekey = (currentKey: string) =>
+    currentKey === ev.id ? false : keyHasMbid(ev.id) || !keyHasMbid(currentKey);
+
+  let dbEvent = null;
+  const byKey = await prisma.event.findUnique({ where: { dedupeKey: ev.id } });
+  if (byKey && !claimed.has(byKey.id)) {
+    dbEvent = await prisma.event.update({ where: { id: byKey.id }, data: common });
   }
+
   if (!dbEvent && ev.sources.length > 0) {
     const bySource = await prisma.eventSource.findFirst({
       where: {
@@ -160,13 +184,13 @@ async function persistCanonicalEvent(
           sourceId: s.sourceId,
         })),
       },
-      select: { eventId: true },
+      select: { eventId: true, event: { select: { dedupeKey: true } } },
     });
-    if (bySource) {
+    if (bySource && !claimed.has(bySource.eventId)) {
       dbEvent = await prisma.event
         .update({
           where: { id: bySource.eventId },
-          data: { dedupeKey: ev.id, ...common },
+          data: mayRekey(bySource.event.dedupeKey) ? { dedupeKey: ev.id, ...common } : common,
         })
         // Unique race (another tick just claimed the key): fall through.
         .catch(() => null);
@@ -180,12 +204,14 @@ async function persistCanonicalEvent(
       },
       include: { venue: true },
     });
-    const drifted = sameDay.find((c) => venueSimilarity(c.venue.name, ev.venue.name) >= 0.6);
+    const drifted = sameDay.find(
+      (c) => !claimed.has(c.id) && venueSimilarity(c.venue.name, ev.venue.name) >= 0.6,
+    );
     if (drifted) {
       dbEvent = await prisma.event
         .update({
           where: { id: drifted.id },
-          data: { dedupeKey: ev.id, ...common },
+          data: mayRekey(drifted.dedupeKey) ? { dedupeKey: ev.id, ...common } : common,
         })
         .catch(() => null);
     }
@@ -197,6 +223,7 @@ async function persistCanonicalEvent(
       update: common,
     });
   }
+  claimed.add(dbEvent.id);
 
   // The synced artist headlines only when the canonical event says so — on a
   // co-billed show where they support, don't mislabel them as headliner.
