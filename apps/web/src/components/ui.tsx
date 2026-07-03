@@ -94,7 +94,7 @@ export function SectionTitle({
         <span className="h-4 w-1 rounded-full bg-accent-grad" />
         {children}
       </h2>
-      {hint ? <span className="text-xs text-white/40">{hint}</span> : null}
+      {hint ? <span className="text-xs text-white/50">{hint}</span> : null}
     </div>
   );
 }

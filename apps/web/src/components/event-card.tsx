@@ -58,7 +58,7 @@ export function EventCard({ event, friendCount }: { event: GlobeEventDTO; friend
           <span
             className={cn(
               "shrink-0 whitespace-nowrap tabular-nums",
-              event.withinRadius ? "text-glow" : "text-white/40",
+              event.withinRadius ? "text-glow" : "text-white/55",
             )}
           >
             {formatDistance(event.distanceKm)}

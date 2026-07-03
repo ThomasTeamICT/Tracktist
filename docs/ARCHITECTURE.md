@@ -81,10 +81,33 @@ brief's §5.2 budget model.
 
 ## Worker (`apps/worker`)
 
-BullMQ queues + repeatable jobs (brief §5.2): daily scan per unique artist,
-faster scan for must-see, ticket-status checks, distance recompute, notification
-dispatch, data-quality sweep. Central rate-limiter per source, `last_synced_at`
-per artist, priority queue.
+BullMQ repeatable jobs (brief §5.2): a daily scan per unique artist
+(`SYNC_DAILY_CRON`), a faster scan (`SYNC_FAST_CRON`) and a weekly digest run
+(`DIGEST_CRON`, Monday 08:00 by default). The worker is a thin scheduler — it
+POSTs `/api/internal/tick` (constant-time secret check) and all real work
+lives in the web app. It preflights Redis with a timeout and falls back to a
+guarded in-process interval when Redis is absent; stale repeatable schedules
+are reconciled on boot so changing a cron never double-fires.
+
+## Notifications (§6.5)
+
+Rules run in `@tracktist/core` (pure, tested): per-follow modes (`always`,
+`within_distance`, `only_countries`, `only_with_tickets`, `only_new_tours`,
+`dashboard_only`), global filters, and lifecycle alerts (cancelled/rescheduled)
+that only fire for shows the user was actually told about. Delivery is a
+separate phase in the web app: rows are created idempotently on a
+`(user,event,anchor)` dedupe key + change hash, then web push is dispatched
+outside the user's quiet hours (pending rows are retried by the next tick).
+Digest-mode rows are bundled into ONE weekly summary push, idempotent per ISO
+week.
+
+## Images & assets
+
+Fonts (Inter, Space Grotesk) and the globe's Earth textures are **self-hosted**
+in `apps/web/public` — no third-party font/CDN requests (GDPR). Artist photos
+come from the Deezer API server-side and are served to browsers through
+`/api/img`, a strictly allowlisted same-origin proxy, so user IPs and referers
+never reach the CDN.
 
 ## Data model (§10)
 
@@ -98,6 +121,11 @@ per artist, priority queue.
 ## Privacy & GDPR (§14)
 
 Layered consent (location / notifications / contacts separately), coarse
-location storage (anchor + radius, no continuous tracking in the web MVP),
-full data export and account/data deletion, server-side secrets, rate limiting
-on public endpoints. No scraping in production.
+location storage (anchors rounded to ~1 km; no continuous tracking in the web
+MVP), full data export (including linked accounts, sessions, groups and
+calendar links — never tokens) and account/data deletion (verification tokens
+removed, owned groups transferred to another member, affiliate rows scrubbed
+and pseudonymized), server-side secrets, rate limiting on public endpoints.
+Affiliate sub-ids are hashed — the raw user id never leaves our systems.
+Admin-only endpoints (manual event import) are gated by `ADMIN_EMAILS`.
+No scraping in production.

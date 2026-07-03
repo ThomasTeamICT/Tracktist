@@ -32,13 +32,13 @@ Typ ze één voor één (wacht tot elk klaar is):
 
 ```bash
 pnpm install                        # installeert alles (1e keer duurt even)
-cp .env.example apps/web/.env       # instellingenbestand (Windows: copy .env.example apps\web\.env)
-pnpm bootstrap                      # start de database + vult demo-data (Docker moet draaien)
+pnpm bootstrap                      # maakt apps/web/.env aan, start de database + vult demo-data (Docker moet draaien)
 pnpm dev                            # start de app
 ```
 
-> Let op: het `.env`-bestand hoort in **`apps/web/`** (daar leest de web-app het),
-> niet in de hoofdmap.
+> `pnpm bootstrap` maakt automatisch een `.env`-bestand aan in **`apps/web/`**
+> (op basis van `.env.example`) als het er nog niet staat. Eigen sleutels vul je
+> dus in `apps/web/.env` in — niet in de hoofdmap.
 
 Open daarna **http://localhost:3000** in je browser → je ziet de landingspagina. 🎉
 
@@ -72,6 +72,17 @@ in `.env`:
 - `BANDSINTOWN_APP_ID` (je eigen domeinnaam volstaat om te testen)
 
 Daarna haalt de app automatisch shows op voor je gevolgde artiesten.
+
+## Nieuwe versie ophalen (updaten)
+
+Staat er een update klaar op de branch? Stop de app (`Ctrl + C`) en typ:
+
+```bash
+git pull
+pnpm install
+pnpm bootstrap      # past ook nieuwe database-migraties toe
+pnpm dev
+```
 
 ## Stoppen
 

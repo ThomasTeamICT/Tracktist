@@ -57,11 +57,9 @@ pnpm spike0
 pnpm test:core
 
 # 4. Local infra (Postgres+PostGIS, Redis) for the web app
-cp .env.example .env        # then fill in keys you have
-pnpm db:up                  # docker compose: postgres + redis
-pnpm db:migrate             # Prisma migrations (creates PostGIS schema)
+pnpm bootstrap              # creates apps/web/.env, starts db, migrates, seeds
 pnpm dev                    # Next.js web app on http://localhost:3000
-pnpm worker                 # background sync/notification workers
+pnpm worker                 # background sync/notification/digest workers
 ```
 
 `pnpm spike0` runs entirely on bundled fixtures, so it works with **zero
@@ -86,24 +84,30 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture and
 ## Status
 
 - ✅ **Spike 0** — data proof (resolution → TM+BIT fetch → dedupe → cross-border
-  distance) with automated tests. `pnpm spike0` · `pnpm test:core` (50 tests).
+  distance) with automated tests. `pnpm spike0` · `pnpm test:core` (62 tests).
 - ✅ **MVP (web)** — account (Auth.js: email magic link + Google), thuisanker +
   straal, artiest-import (zoeken / CSV-plak / Last.fm), automatische sync (TM +
-  Bandsintown, dedupe), agenda + interactieve map/globe, web-push + e-mail +
-  in-app meldingen met slimme regels, affiliate-getrackte ticketlinks,
-  vrienden, instellingen. Full §11 API. Builds clean (`pnpm build`).
+  Bandsintown, dedupe), agenda + echte 3D-wereldbol (globe.gl, self-hosted
+  textures) mét 2D-fallback, web-push + e-mail + in-app meldingen met slimme
+  regels (stiltij-uren, only-new-tours, wekelijkse digest), affiliate-getrackte
+  ticketlinks, vrienden (interesse zichtbaar op events), instellingen.
+  Full §11 API. Builds clean (`pnpm build`).
 - ✅ **Backend bewezen tegen een echte PostGIS-database** — migraties, een
   PostGIS `ST_DWithin`-nabijheidsquery en een end-to-end integratietest
   (`pnpm --filter @tracktist/web test:integration`, 12 assertions): dedupe →
   persist → cross-border nearby → relevantie → idempotente notificaties.
-- ⏭️ **Volgende (v1.5/v2)** — volwaardige 3D-globe (R3F/Globe.gl), vrienden-crews
-  & gedeelde watchlists, wekelijkse digest, Pro-feature-flag, native app
-  (echte push, geofencing), reisankers, kalendersync, co-occurrence-aanbevelingen.
+- ✅ **Audit-pass** — multi-agent review over 9 dimensies; 45+ fixes toegepast
+  (security, GDPR, dedupe-randgevallen, notificatieregels, worker-robuustheid,
+  performance, toegankelijkheid). Fonts en globe-textures self-hosted;
+  artiestfoto's via een allowlisted same-origin proxy (geen IP-lek).
+- ⏭️ **Volgende (v1.5/v2)** — vrienden-crews & gedeelde watchlists,
+  Pro-feature-flag, native app (echte push, geofencing), reisankers,
+  kalendersync, co-occurrence-aanbevelingen, per-gebruiker tijdzones.
 
 ### Verify everything
 
 ```bash
-pnpm test:core                               # 50 core unit tests (incl. Spike 0)
+pnpm test:core                               # 62 core unit tests (incl. Spike 0)
 pnpm spike0                                  # human-readable data proof (offline)
 pnpm --filter @tracktist/web build           # production build of the web app
 pnpm --filter @tracktist/web db:seed         # demo data into a local PostGIS db

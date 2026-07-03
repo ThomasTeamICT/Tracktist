@@ -20,7 +20,7 @@ import {
   utcToIsoDate,
   type DbEventWithRelations,
 } from "@/lib/mappers";
-import { Badge, Button, SectionTitle, gradientFromName } from "@/components/ui";
+import { Badge, ButtonLink, SectionTitle, gradientFromName } from "@/components/ui";
 import { cssBgUrl, formatDate, formatDistance } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -171,21 +171,17 @@ export default async function EventDetailPage({
 
       <div className="flex flex-wrap gap-3">
         {hasTicketLink ? (
-          <a
+          <ButtonLink
             href={`/api/events/${dbEvent.id}/ticket-link`}
             target="_blank"
             rel="noreferrer"
           >
-            <Button>
-              <Ticket className="h-4 w-4" /> Tickets
-            </Button>
-          </a>
+            <Ticket className="h-4 w-4" /> Tickets
+          </ButtonLink>
         ) : null}
-        <a href={`/api/events/${dbEvent.id}/calendar`}>
-          <Button variant="outline">
-            <CalendarPlus className="h-4 w-4" /> In agenda
-          </Button>
-        </a>
+        <ButtonLink href={`/api/events/${dbEvent.id}/calendar`} variant="outline">
+          <CalendarPlus className="h-4 w-4" /> In agenda
+        </ButtonLink>
       </div>
 
       {lowConfidence ? (
@@ -210,11 +206,11 @@ export default async function EventDetailPage({
             <p className="pl-6 text-sm text-white/45">Adres onbekend</p>
           )}
           {location ? (
-            <p className="pl-6 text-xs text-white/40">
+            <p className="pl-6 text-xs text-white/50">
               Coördinaten: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
             </p>
           ) : (
-            <p className="pl-6 text-xs text-white/40">Coördinaten onbekend</p>
+            <p className="pl-6 text-xs text-white/50">Coördinaten onbekend</p>
           )}
         </div>
       </section>
@@ -260,7 +256,7 @@ export default async function EventDetailPage({
               const inner = (
                 <span className="flex w-full items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2">
                   <Badge tone="neutral">{s.provider}</Badge>
-                  <span className="text-xs text-white/40">
+                  <span className="text-xs text-white/50">
                     laatst gecontroleerd op {formatCheckedAt(s.lastCheckedAt)}
                   </span>
                 </span>
