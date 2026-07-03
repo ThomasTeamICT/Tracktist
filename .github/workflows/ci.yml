@@ -24,6 +24,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The web app's types come from the GENERATED Prisma client — without
+      # this, @prisma/client is an empty stub and the typecheck fails.
+      - run: pnpm --filter @tracktist/web prisma generate
       - run: pnpm -r --if-present typecheck
       - run: pnpm --filter @tracktist/core test
       - run: pnpm --filter @tracktist/core spike0
@@ -56,6 +59,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @tracktist/web prisma generate
       - run: pnpm --filter @tracktist/web prisma migrate deploy
       - run: pnpm --filter @tracktist/web test:integration
       - run: pnpm --filter @tracktist/web build
