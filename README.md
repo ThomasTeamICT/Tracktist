@@ -94,7 +94,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture and
   Full §11 API. Builds clean (`pnpm build`).
 - ✅ **Backend bewezen tegen een echte PostGIS-database** — migraties, een
   PostGIS `ST_DWithin`-nabijheidsquery en een end-to-end integratietest
-  (`pnpm --filter @tracktist/web test:integration`, 12 assertions): dedupe →
+  (`pnpm --filter @tracktist/web test:integration`, 30 assertions): dedupe →
   persist → cross-border nearby → relevantie → idempotente notificaties.
 - ✅ **Audit-pass** — multi-agent review over 9 dimensies; 45+ fixes toegepast
   (security, GDPR, dedupe-randgevallen, notificatieregels, worker-robuustheid,
@@ -111,7 +111,7 @@ pnpm test:core                               # 62 core unit tests (incl. Spike 0
 pnpm spike0                                  # human-readable data proof (offline)
 pnpm --filter @tracktist/web build           # production build of the web app
 pnpm --filter @tracktist/web db:seed         # demo data into a local PostGIS db
-pnpm --filter @tracktist/web test:integration # full backend, 12 assertions, real db
+pnpm --filter @tracktist/web test:integration # full backend, 30 assertions, real db
 ```
 
 ## License
