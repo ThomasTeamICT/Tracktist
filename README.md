@@ -84,7 +84,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture and
 ## Status
 
 - ✅ **Spike 0** — data proof (resolution → TM+BIT fetch → dedupe → cross-border
-  distance) with automated tests. `pnpm spike0` · `pnpm test:core` (62 tests).
+  distance) with automated tests. `pnpm spike0` · `pnpm test:core` (65 tests).
 - ✅ **MVP (web)** — account (Auth.js: email magic link + Google), thuisanker +
   straal, artiest-import (zoeken / CSV-plak / Last.fm), automatische sync (TM +
   Bandsintown, dedupe), agenda + echte 3D-wereldbol (globe.gl, self-hosted
@@ -107,7 +107,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full picture and
 ### Verify everything
 
 ```bash
-pnpm test:core                               # 62 core unit tests (incl. Spike 0)
+pnpm test:core                               # 65 core unit tests (incl. Spike 0)
 pnpm spike0                                  # human-readable data proof (offline)
 pnpm --filter @tracktist/web build           # production build of the web app
 pnpm --filter @tracktist/web db:seed         # demo data into a local PostGIS db
