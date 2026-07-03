@@ -1,5 +1,7 @@
 # Tracktist
 
+[![CI](https://github.com/ThomasTeamICT/Tracktist/actions/workflows/ci.yml/badge.svg?branch=claude%2Findependent-build-cd5vvv)](https://github.com/ThomasTeamICT/Tracktist/actions/workflows/ci.yml)
+
 > *Track your favourite artists — your personal live-music radar.*
 
 Tracktist lets you follow your favourite artists and automatically tells you when
